@@ -86,15 +86,15 @@ class ExploratoryDataReview:
             1 comma → EU format (replace comma with dot)
             1 dot → US format (keep as is)
             """
-            comma_count = val.count(',')
-            dot_count = val.count('.')
+            comma_count = val.count(",")
+            dot_count = val.count(".")
 
             if comma_count >= 2:  # US: 1,234,567.89 becomes 1234567.89
-                return val.replace(',', '')
+                return val.replace(",", "")
             elif dot_count >= 2:  # EU: 1.234.567,89 becomes 1234567.89
-                return val.replace('.', '').replace(',', '.')
+                return val.replace(".", "").replace(",", ".")
             elif comma_count == 1:  # EU: 1234,56 becomes 1234.56
-                return val.replace(',', '.')
+                return val.replace(",", ".")
             else:  # 1 or 0 dots, 0 commas, data is already in US format and will be correctly interpreted by pd.to_numeric
                 return val
 
@@ -150,11 +150,11 @@ class ExploratoryDataReview:
         column_lower = column_name.lower()
 
         # Financial indicators
-        if any(term in column_lower for term in ['price', 'stock', 'ticker', 'market']):
+        if any(term in column_lower for term in ["price", "stock", "ticker", "market"]):
             return "stocks"
-        if any(term in column_lower for term in ['revenue', 'sales', 'profit', 'cost']):
+        if any(term in column_lower for term in ["revenue", "sales", "profit", "cost"]):
             return "revenue"
-        if any(term in column_lower for term in ['time', 'date', 'timestamp', 'year', 'month']):
+        if any(term in column_lower for term in ["time", "date", "timestamp", "year", "month"]):
             return "temporal"
 
         return "general"
@@ -221,9 +221,10 @@ class ExploratoryDataReview:
         self.metadata = {}
 
         # Filter out ID columns (customerID, rowID, etc.)
-        id_keywords = ['id', 'rowid', 'customerid', 'userid', 'index']
-        columns_to_analyze = [col for col in self.df.columns
-                             if col.lower().replace('_', '').replace(' ', '') not in id_keywords]
+        id_keywords = ["id", "rowid", "customerid", "userid", "index"]
+        columns_to_analyze = [
+            col for col in self.df.columns if col.lower().replace("_", "").replace(" ", "") not in id_keywords
+        ]
 
         for column in columns_to_analyze:
             series = self.df[column]
@@ -264,9 +265,9 @@ class ExploratoryDataReview:
         series = self.df[col]
 
         # For object columns, check if they're actually numeric
-        if series.dtype == 'object':
+        if series.dtype == "object":
             # Try converting to numeric
-            numeric_converted = pd.to_numeric(series, errors='coerce')
+            numeric_converted = pd.to_numeric(series, errors="coerce")
             # Calculate what fraction successfully converted
             numeric_fraction = numeric_converted.notna().mean()
 
@@ -297,8 +298,8 @@ class ExploratoryDataReview:
             return "unknown"
 
         col_meta = self.metadata[col]
-        manual_type = col_meta.get('manual_data_type', '')
-        auto_type = col_meta.get('auto_data_type', 'unknown')
+        manual_type = col_meta.get("manual_data_type", "")
+        auto_type = col_meta.get("auto_data_type", "unknown")
         return manual_type if manual_type else auto_type
 
     def _validate_data_type(self, col: str) -> str:
@@ -350,7 +351,7 @@ class ExploratoryDataReview:
             # Unknown or no data type determined
             return "N/A"
 
-    def export_statistics_to_excel(self, output_path: str = 'data_statistics.xlsx'):
+    def export_statistics_to_excel(self, output_path: str = "data_statistics.xlsx"):
         """Export dataframe statistics to an Excel file with multiple sheets.
 
         Parameters
@@ -358,41 +359,40 @@ class ExploratoryDataReview:
         output_path : str, optional (default='data_statistics.xlsx')
             Path where the statistics Excel file will be saved.
         """
-        with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
             # Sheet 1: Overview
             overview_data = {
-                'Metric': [
-                    'Number of Rows',
-                    'Number of Columns',
-                    'Duplicate Rows',
-                    'Duplicate Percentage'
-                ],
-                'Value': [
+                "Metric": ["Number of Rows", "Number of Columns", "Duplicate Rows", "Duplicate Percentage"],
+                "Value": [
                     self.df.shape[0],
                     self.df.shape[1],
                     self.df.duplicated().sum(),
-                    f"{(self.df.duplicated().sum() / len(self.df) * 100):.2f}%"
-                ]
+                    f"{(self.df.duplicated().sum() / len(self.df) * 100):.2f}%",
+                ],
             }
             overview_df = pd.DataFrame(overview_data)
-            overview_df.to_excel(writer, sheet_name='Row Info', index=False)
+            overview_df.to_excel(writer, sheet_name="Row Info", index=False)
 
             # Sheet 2: Column Info
             # Ensure metadata exists for data type checking
             if not self.metadata:
                 self.generate_metadata()
 
-            col_info = pd.DataFrame({
-                'Column': self.df.columns,
-                'Determined Data Type': [self._get_effective_data_type(col) for col in self.df.columns],
-                'Data Type': [str(dtype) for dtype in self.df.dtypes],
-                'Data Type Check': [self._validate_data_type(col) for col in self.df.columns],
-                'Non-Null Count': [len(self.df) - self._count_missing_values(col) for col in self.df.columns],
-                'Null Count': [self._count_missing_values(col) for col in self.df.columns],
-                'Missing Percentage': [f"{(self._count_missing_values(col) / len(self.df) * 100):.2f}%" for col in self.df.columns],
-                'Unique Values': [self.df[col].nunique() for col in self.df.columns]
-            })
-            col_info.to_excel(writer, sheet_name='Column Info', index=False)
+            col_info = pd.DataFrame(
+                {
+                    "Column": self.df.columns,
+                    "Determined Data Type": [self._get_effective_data_type(col) for col in self.df.columns],
+                    "Data Type": [str(dtype) for dtype in self.df.dtypes],
+                    "Data Type Check": [self._validate_data_type(col) for col in self.df.columns],
+                    "Non-Null Count": [len(self.df) - self._count_missing_values(col) for col in self.df.columns],
+                    "Null Count": [self._count_missing_values(col) for col in self.df.columns],
+                    "Missing Percentage": [
+                        f"{(self._count_missing_values(col) / len(self.df) * 100):.2f}%" for col in self.df.columns
+                    ],
+                    "Unique Values": [self.df[col].nunique() for col in self.df.columns],
+                }
+            )
+            col_info.to_excel(writer, sheet_name="Column Info", index=False)
 
             # Sheet 3: Descriptive Statistics (Numeric) - using metadata
             # Ensure metadata exists
@@ -400,10 +400,10 @@ class ExploratoryDataReview:
                 self.generate_metadata()
 
             # Get numeric columns based on metadata (continuous + discrete)
-            numeric_types = ['continuous', 'discrete']
+            numeric_types = ["continuous", "discrete"]
             numeric_cols = []
             for col, meta in self.metadata.items():
-                data_type = meta.get('manual_data_type') or meta.get('auto_data_type', '')
+                data_type = meta.get("manual_data_type") or meta.get("auto_data_type", "")
                 if data_type in numeric_types:
                     numeric_cols.append(col)
 
@@ -411,16 +411,16 @@ class ExploratoryDataReview:
                 # Convert to numeric if needed and create descriptive stats
                 numeric_df = self.df[numeric_cols].copy()
                 for col in numeric_cols:
-                    if numeric_df[col].dtype == 'object':
-                        numeric_df[col] = pd.to_numeric(numeric_df[col], errors='coerce')
+                    if numeric_df[col].dtype == "object":
+                        numeric_df[col] = pd.to_numeric(numeric_df[col], errors="coerce")
                 desc_numeric = numeric_df.describe()
-                desc_numeric.to_excel(writer, sheet_name='Descriptive Stats (Numeric)')
+                desc_numeric.to_excel(writer, sheet_name="Descriptive Stats (Numeric)")
 
             # Sheet 4: Descriptive Statistics (Categorical) - using metadata
-            categorical_types = ['binary', 'categorical', 'ordinal']
+            categorical_types = ["binary", "categorical", "ordinal"]
             categorical_cols = []
             for col, meta in self.metadata.items():
-                data_type = meta.get('manual_data_type') or meta.get('auto_data_type', '')
+                data_type = meta.get("manual_data_type") or meta.get("auto_data_type", "")
                 if data_type in categorical_types:
                     categorical_cols.append(col)
 
@@ -429,8 +429,8 @@ class ExploratoryDataReview:
                 categorical_df = self.df[categorical_cols].copy()
                 for col in categorical_cols:
                     categorical_df[col] = categorical_df[col].astype(str)
-                desc_categorical = categorical_df.describe(include='all')
-                desc_categorical.to_excel(writer, sheet_name='Descriptive Stats (Categorical)')
+                desc_categorical = categorical_df.describe(include="all")
+                desc_categorical.to_excel(writer, sheet_name="Descriptive Stats (Categorical)")
 
             # Sheet 5: Metadata
             if not self.metadata:
@@ -438,16 +438,16 @@ class ExploratoryDataReview:
 
             metadata_rows = []
             for column, meta in self.metadata.items():
-                row = {'Column': column}
+                row = {"Column": column}
                 row.update(meta)
                 metadata_rows.append(row)
 
             metadata_df = pd.DataFrame(metadata_rows)
-            metadata_df.to_excel(writer, sheet_name='Metadata', index=False)
+            metadata_df.to_excel(writer, sheet_name="Metadata", index=False)
 
         print(f"✅ Statistics exported to: {output_path}")
 
-    def _create_all_visualizations(self, save_path: str = 'data_exploration.png'):
+    def _create_all_visualizations(self, save_path: str = "data_exploration.png"):
         """
         Create visualizations for all columns based on metadata.
 
@@ -481,13 +481,13 @@ class ExploratoryDataReview:
 
             # Get visualization type from metadata (manual takes precedence over auto)
             col_meta = self.metadata.get(column, {})
-            manual_viz = col_meta.get('manual_visualization', '')
-            auto_viz = col_meta.get('auto_visualization', 'none')
+            manual_viz = col_meta.get("manual_visualization", "")
+            auto_viz = col_meta.get("auto_visualization", "none")
             viz_type = manual_viz if manual_viz else auto_viz
 
             # Get data type for title (manual takes precedence over auto)
-            manual_type = col_meta.get('manual_data_type', '')
-            auto_type = col_meta.get('auto_data_type', 'unknown')
+            manual_type = col_meta.get("manual_data_type", "")
+            auto_type = col_meta.get("auto_data_type", "unknown")
             data_type = manual_type if manual_type else auto_type
 
             title = f"{column}\n({data_type})"
@@ -497,25 +497,32 @@ class ExploratoryDataReview:
             try:
                 viz_method(ax, series, title)
             except Exception as e:
-                ax.text(0.5, 0.5, f'Error creating\n{viz_type}\n{str(e)}',
-                       ha='center', va='center', transform=ax.transAxes, fontsize=8)
-                ax.set_title(title, fontsize=10, fontweight='bold')
+                ax.text(
+                    0.5,
+                    0.5,
+                    f"Error creating\n{viz_type}\n{str(e)}",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                    fontsize=8,
+                )
+                ax.set_title(title, fontsize=10, fontweight="bold")
 
         # Remove empty subplots
         for idx in range(n_cols_to_plot, len(axes)):
             fig.delaxes(axes[idx])
 
         plt.tight_layout()
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
         plt.close()
         print(f"✅ Visualizations saved to: {save_path}")
-    
+
     def exploratory_data_review(
         self,
         export_stats: bool = True,
-        stats_path: str = 'data_statistics.xlsx',
+        stats_path: str = "data_statistics.xlsx",
         create_visualizations: bool = True,
-        viz_path: str = 'data_exploration.png'
+        viz_path: str = "data_exploration.png",
     ):
         """
         Run complete exploratory data analysis workflow.
@@ -547,4 +554,3 @@ class ExploratoryDataReview:
         # Step 3: Create visualizations
         if create_visualizations:
             self._create_all_visualizations(save_path=viz_path)
-
