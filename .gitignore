@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project outputs
+*.xlsx
+*.png
+
+# Projects - ignore all except example
+projects/*
+!projects/example/
+!projects/example/**
+
+# Data - ignore all except example.csv
+data/*
+!data/example.csv
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
