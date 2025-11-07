@@ -8,7 +8,7 @@ Please note that I am aware that DataVisualization & StatisticalMethods should n
 
 The EDA class is meant to condition by one or more features, automatically determine the visualization for the relationship/comparison based on the data types of the involved features, determine multicollinearity, perform general statistical analysis and rank by strength. It takes the metadata from EDR, which can also be overwritten as desired to perform the visualization of choice.
 
-HOW TO USE
+HOW TO USE:
 
 See example_analysis.py for an example on how to use this analysis. Perform these steps in order:
 
