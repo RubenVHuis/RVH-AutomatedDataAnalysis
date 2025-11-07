@@ -1,3 +1,13 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rvh-automated-data-analysis"
+version = "0.1.0"
+description = "Automated data analysis and CI/CD demonstration"
+requires-python = ">=3.9"
+
 [tool.black]
 line-length = 127
 target-version = ['py39', 'py310', 'py311']
