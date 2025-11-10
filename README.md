@@ -1,5 +1,7 @@
 # Exploratory Data Review & Analysis Framework
 
+Quick summary: Slashes data preparation time significantly by automatically identifying and flagging critical data quality issues (missing values, duplicates, type inconsistencies), vizualizing the data and perform general statistical analysis before model training begins.
+
 Welcome! This work-in-progress repo contains a Python framework for exploratory data review & analysis with automated data type detection, visualization recommendations, and statistical testing. It is meant to quickly assess your data, determine if wrangling is necessary, develop an analysis strategy, determine relationships, find potential multicollinearity and determine if modelling is appropriate.
 
 The EDR class is meant to quickly explore the dataset, check if the data types are correct, check for duplicates/missing values (&wrangle accordingly). It creates a dictionary with metadata containing the determined data types (numerical, categorical) and a suggested visualization based on the data type. When visualizing data, you can overwrite these automatically determined types and visualizations with the manual* prefix per feature/column, as that takes precedence over the auto* prefix.
