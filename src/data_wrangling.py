@@ -352,9 +352,7 @@ class DataWrangling:
 
         return self
 
-    def handle_outliers(
-        self, columns: list = None, method: str = "iqr", threshold: float = 1.5, action: str = "cap"
-    ):
+    def handle_outliers(self, columns: list = None, method: str = "iqr", threshold: float = 1.5, action: str = "cap"):
         """
         Handle outliers in numerical columns.
 

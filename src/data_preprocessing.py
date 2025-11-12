@@ -819,9 +819,7 @@ class DataPreprocessor:
                     }
                 )
                 # Add PCA component details
-                for j, (var, cumvar) in enumerate(
-                    zip(step["explained_variance"], step["cumulative_variance"]), 1
-                ):
+                for j, (var, cumvar) in enumerate(zip(step["explained_variance"], step["cumulative_variance"]), 1):
                     report_rows.append(
                         {
                             "Section": f"Step {i}",
