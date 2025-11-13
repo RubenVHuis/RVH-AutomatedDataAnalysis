@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import copy
+from scipy import stats
 from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
 from sklearn.decomposition import PCA
 from imblearn.over_sampling import SMOTE, RandomOverSampler
@@ -15,9 +16,11 @@ except ImportError:
 
 class DataPreprocessor:
     """
-    Data preprocessing class for preparing data for modeling.
+    Data preprocessing class for preparing data for modeling after train/test split.
 
     This class provides methods for:
+    - Imputing missing values (mean, median, mode - statistical methods)
+    - Handling outliers (IQR, z-score detection with capping/removal/transformation)
     - Encoding categorical variables (one-hot encoding)
     - Feature scaling (StandardScaler, MinMaxScaler, RobustScaler)
     - Balancing datasets (Re-sampling, SMOTE)
@@ -25,6 +28,11 @@ class DataPreprocessor:
     - Dimensionality reduction (PCA, FAMD)
 
     All transformations are tracked and can be retrieved via get_preprocessing_summary().
+
+    IMPORTANT: Use this class AFTER splitting your data into train/test sets.
+    Fit transformations on training data, then apply to test data to avoid data leakage.
+
+    Workflow: ExploratoryDataReview → DataWrangling → Split → DataPreprocessor → Model
     """
 
     def __init__(self, df: pd.DataFrame, metadata: dict = None):
@@ -159,6 +167,233 @@ class DataPreprocessor:
         )
 
         self.df = df_encoded
+        return self
+
+    def impute_missing(self, columns: list = None, strategy: str = "mean"):
+        """
+        Impute missing values using statistical methods (use after train/test split).
+
+        This method uses dataset statistics (mean, median, mode) for imputation.
+        IMPORTANT: Apply after splitting data to avoid data leakage. Fit the imputer
+        on training data, then apply the same transformation to test data.
+
+        Parameters
+        ----------
+        columns : list, optional
+            Columns to impute. If None, imputes all columns with missing values.
+        strategy : str, optional (default='mean')
+            Imputation strategy:
+            - 'mean': Replace with column mean (numerical only)
+            - 'median': Replace with column median (numerical only)
+            - 'mode': Replace with most frequent value
+
+        Returns
+        -------
+        DataPreprocessor
+            Returns self for method chaining.
+
+        Examples
+        --------
+        # Impute all columns with mean
+        preprocessor.impute_missing(strategy='mean')
+
+        # Impute specific columns with median
+        preprocessor.impute_missing(columns=['age', 'income'], strategy='median')
+
+        # Impute with mode (works for categorical too)
+        preprocessor.impute_missing(columns=['category'], strategy='mode')
+        """
+        # Determine which columns to impute
+        if columns is None:
+            columns = [col for col in self.df.columns if self.df[col].isnull().any()]
+        else:
+            # Validate columns exist
+            missing_cols = [col for col in columns if col not in self.df.columns]
+            if missing_cols:
+                raise ValueError(f"Columns not found in dataframe: {missing_cols}")
+
+        if not columns:
+            return self
+
+        # Count missing values before imputation
+        missing_counts_before = {col: self.df[col].isnull().sum() for col in columns}
+        skipped_columns = []
+        imputation_values = {}
+
+        # Apply imputation strategy
+        if strategy == "mean":
+            for col in columns:
+                if pd.api.types.is_numeric_dtype(self.df[col]):
+                    mean_val = self.df[col].mean()
+                    self.df[col] = self.df[col].fillna(mean_val)
+                    imputation_values[col] = mean_val
+                else:
+                    skipped_columns.append(f"{col} (not numeric)")
+
+        elif strategy == "median":
+            for col in columns:
+                if pd.api.types.is_numeric_dtype(self.df[col]):
+                    median_val = self.df[col].median()
+                    self.df[col] = self.df[col].fillna(median_val)
+                    imputation_values[col] = median_val
+                else:
+                    skipped_columns.append(f"{col} (not numeric)")
+
+        elif strategy == "mode":
+            for col in columns:
+                mode_value = self.df[col].mode()
+                if len(mode_value) > 0:
+                    self.df[col] = self.df[col].fillna(mode_value[0])
+                    imputation_values[col] = mode_value[0]
+                else:
+                    skipped_columns.append(f"{col} (no mode)")
+
+        else:
+            raise ValueError(f"Invalid strategy: {strategy}. Choose from: 'mean', 'median', 'mode'")
+
+        # Count missing values after imputation
+        missing_counts_after = {col: self.df[col].isnull().sum() for col in columns}
+
+        # Track preprocessing step
+        self.preprocessing_steps.append(
+            {
+                "step": "impute_missing",
+                "strategy": strategy,
+                "columns": columns,
+                "missing_before": missing_counts_before,
+                "missing_after": missing_counts_after,
+                "skipped_columns": skipped_columns,
+                "imputation_values": imputation_values,
+            }
+        )
+
+        return self
+
+    def handle_outliers(self, columns: list = None, method: str = "iqr", threshold: float = 1.5, action: str = "cap"):
+        """
+        Handle outliers using statistical methods (use after train/test split).
+
+        This method uses dataset statistics for outlier detection.
+        IMPORTANT: Apply after splitting data to avoid data leakage. Calculate
+        thresholds on training data, then apply the same thresholds to test data.
+
+        Parameters
+        ----------
+        columns : list, optional
+            Columns to check for outliers. If None, checks all numerical columns.
+        method : str, optional (default='iqr')
+            Outlier detection method:
+            - 'iqr': Interquartile range (Q1 - threshold*IQR, Q3 + threshold*IQR)
+            - 'zscore': Z-score (|z| > threshold)
+        threshold : float, optional (default=1.5)
+            Threshold for outlier detection:
+            - For IQR: multiplier for IQR (typical: 1.5 or 3.0)
+            - For Z-score: number of standard deviations (typical: 3.0)
+        action : str, optional (default='cap')
+            Action to take on outliers:
+            - 'cap': Cap outliers at threshold boundaries
+            - 'remove': Remove rows with outliers
+            - 'log': Apply log transformation (log1p)
+
+        Returns
+        -------
+        DataPreprocessor
+            Returns self for method chaining.
+
+        Examples
+        --------
+        # Cap outliers using IQR method
+        preprocessor.handle_outliers(method='iqr', action='cap')
+
+        # Remove outliers using Z-score
+        preprocessor.handle_outliers(columns=['income'], method='zscore', threshold=3, action='remove')
+
+        # Apply log transformation
+        preprocessor.handle_outliers(columns=['TotalCharges'], action='log')
+        """
+        # Determine which columns to check
+        if columns is None:
+            columns = self.df.select_dtypes(include=[np.number]).columns.tolist()
+        else:
+            # Validate columns exist and are numeric
+            for col in columns:
+                if col not in self.df.columns:
+                    raise ValueError(f"Column '{col}' not found in dataframe.")
+                if not pd.api.types.is_numeric_dtype(self.df[col]):
+                    raise ValueError(f"Column '{col}' is not numeric.")
+
+        if not columns:
+            return self
+
+        outlier_info = {}
+        n_rows_before = len(self.df)
+        skipped_columns = []
+
+        for col in columns:
+            n_outliers = 0
+
+            if method == "iqr":
+                Q1 = self.df[col].quantile(0.25)
+                Q3 = self.df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - threshold * IQR
+                upper_bound = Q3 + threshold * IQR
+
+                outliers_mask = (self.df[col] < lower_bound) | (self.df[col] > upper_bound)
+                n_outliers = outliers_mask.sum()
+
+                if action == "cap":
+                    self.df[col] = self.df[col].clip(lower=lower_bound, upper=upper_bound)
+                elif action == "remove":
+                    self.df = self.df[~outliers_mask]
+
+            elif method == "zscore":
+                z_scores = np.abs(stats.zscore(self.df[col].dropna()))
+                outliers_mask = z_scores > threshold
+                n_outliers = outliers_mask.sum()
+
+                if action == "cap":
+                    mean = self.df[col].mean()
+                    std = self.df[col].std()
+                    lower_bound = mean - threshold * std
+                    upper_bound = mean + threshold * std
+                    self.df[col] = self.df[col].clip(lower=lower_bound, upper=upper_bound)
+                elif action == "remove":
+                    # Remove rows where z-score exceeds threshold
+                    valid_indices = self.df[col].dropna().index[~outliers_mask]
+                    self.df = self.df.loc[valid_indices]
+
+            else:
+                raise ValueError(f"Invalid method: {method}. Choose from: 'iqr', 'zscore'")
+
+            # Apply log transformation if requested
+            if action == "log":
+                if (self.df[col] < 0).any():
+                    skipped_columns.append(f"{col} (contains negative values)")
+                else:
+                    self.df[col] = np.log1p(self.df[col])
+
+            outlier_info[col] = n_outliers
+
+        n_rows_after = len(self.df)
+        n_rows_removed = n_rows_before - n_rows_after
+
+        # Track preprocessing step
+        self.preprocessing_steps.append(
+            {
+                "step": "handle_outliers",
+                "method": method,
+                "threshold": threshold,
+                "action": action,
+                "columns": columns,
+                "outliers_found": outlier_info,
+                "skipped_columns": skipped_columns,
+                "n_rows_removed": n_rows_removed if action == "remove" else 0,
+                "shape_before": (n_rows_before, self.df.shape[1]),
+                "shape_after": self.df.shape,
+            }
+        )
+
         return self
 
     def scale_features(self, columns: list = None, method: str = "standard"):
