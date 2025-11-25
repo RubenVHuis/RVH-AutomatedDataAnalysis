@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.model_selection import cross_val_score
 from sklearn.metrics import (
@@ -13,8 +14,15 @@ from sklearn.metrics import (
     mean_absolute_error,
     r2_score,
 )
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, Any, List
 import xgboost as xgb
+
+try:
+    import shap
+
+    SHAP_AVAILABLE = True
+except ImportError:
+    SHAP_AVAILABLE = False
 
 
 class ForestModels:
@@ -581,3 +589,202 @@ class ForestModels:
         print(f"MSE:       {evaluation_results['mse']:.4f}")
         print(f"MAE:       {evaluation_results['mae']:.4f}")
         print("=" * 50)
+
+    # ==================== EXPLAINABILITY METHODS ====================
+
+    @staticmethod
+    def explain_predictions(
+        model: Union[RandomForestClassifier, xgb.XGBClassifier],
+        X: pd.DataFrame,
+        feature_importance: pd.DataFrame,
+        top_n: int = 5,
+    ) -> Dict[str, Any]:
+        """
+        Explain individual predictions using feature values and importance.
+
+        Fast, interpretable approach: identifies which high-importance features
+        are "risky" for each customer (e.g., month-to-month contract = 1).
+
+        Parameters
+        ----------
+        model : trained classifier
+            Fitted Random Forest or XGBoost classifier.
+        X : pd.DataFrame
+            Features to explain (typically high-risk customers).
+        feature_importance : pd.DataFrame
+            Feature importance from the model (from get_feature_importance).
+        top_n : int, optional (default=5)
+            Number of top risk factors to return per customer.
+
+        Returns
+        -------
+        dict
+            Dictionary containing:
+            - 'explanations': DataFrame with top risk factors per customer
+            - 'feature_names': List of feature names
+
+        Examples
+        --------
+        # Get feature importance
+        importance = ForestModels.get_feature_importance(model, X_train.columns.tolist())
+
+        # Explain high-risk customers
+        explanations = ForestModels.explain_predictions(model, X_test_high_risk, importance)
+        print(explanations['explanations'])
+        """
+        # Create risk factor mapping based on feature importance and values
+        # High importance + "risky" value = top risk factor
+
+        explanations_list = []
+
+        # Create importance lookup
+        importance_dict = dict(zip(feature_importance["feature"], feature_importance["importance"]))
+
+        for idx in range(len(X)):
+            customer_idx = X.index[idx]
+            customer_features = X.iloc[idx]
+
+            # Calculate risk score for each feature
+            risk_scores = []
+            for feature in X.columns:
+                value = customer_features[feature]
+                importance = importance_dict.get(feature, 0)
+
+                # Risk score = importance * how "risky" the value is
+                # For binary features: 1 is potentially risky if it's a negative indicator
+                # For continuous: use absolute value scaled
+                if value != 0:  # Only consider non-zero features (active features)
+                    risk_score = importance * abs(value)
+                    risk_scores.append(
+                        {"feature": feature, "value": value, "importance": importance, "risk_score": risk_score}
+                    )
+
+            # Sort by risk score
+            risk_scores_df = pd.DataFrame(risk_scores).sort_values("risk_score", ascending=False).head(top_n)
+
+            # Create explanation text
+            risk_factors = []
+            for _, row in risk_scores_df.iterrows():
+                risk_factors.append(f"{row['feature']}={row['value']:.2f} (importance: {row['importance']:.3f})")
+
+            explanations_list.append(
+                {
+                    "customer_index": customer_idx,
+                    "top_risk_factors": " | ".join(risk_factors),
+                    "risk_score": risk_scores_df["risk_score"].sum(),
+                }
+            )
+
+        explanations_df = pd.DataFrame(explanations_list)
+
+        return {"explanations": explanations_df, "feature_names": X.columns.tolist()}
+
+    @staticmethod
+    def create_intervention_strategy(
+        model: Union[RandomForestClassifier, xgb.XGBClassifier],
+        X: pd.DataFrame,
+        churn_probabilities: np.ndarray,
+        feature_importance: pd.DataFrame,
+        risk_threshold: float = 0.7,
+        top_n_factors: int = 3,
+    ) -> pd.DataFrame:
+        """
+        Create targeted intervention strategies for high-risk customers.
+
+        Parameters
+        ----------
+        model : trained classifier
+            Fitted churn prediction model.
+        X : pd.DataFrame
+            Customer features.
+        churn_probabilities : np.ndarray
+            Predicted churn probabilities for each customer.
+        feature_importance : pd.DataFrame
+            Feature importance from get_feature_importance().
+        risk_threshold : float, optional (default=0.7)
+            Churn probability threshold for intervention.
+        top_n_factors : int, optional (default=3)
+            Number of top risk factors to address per customer.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with intervention recommendations for each high-risk customer.
+
+        Examples
+        --------
+        # Get feature importance
+        importance = ForestModels.get_feature_importance(model, X_test.columns.tolist())
+
+        # Get predictions
+        proba = model.predict_proba(X_test)[:, 1]
+
+        # Create intervention plan
+        interventions = ForestModels.create_intervention_strategy(
+            model, X_test, proba, importance, risk_threshold=0.7
+        )
+        """
+        # Filter high-risk customers
+        high_risk_mask = churn_probabilities >= risk_threshold
+        high_risk_customers = X[high_risk_mask]
+        high_risk_proba = churn_probabilities[high_risk_mask]
+
+        if len(high_risk_customers) == 0:
+            return pd.DataFrame({"message": ["No high-risk customers found"]})
+
+        # Get explanations
+        explanations = ForestModels.explain_predictions(model, high_risk_customers, feature_importance, top_n=top_n_factors)
+
+        # Build intervention recommendations
+        interventions = []
+
+        for idx, row in explanations["explanations"].iterrows():
+            interventions.append(
+                {
+                    "customer_index": row["customer_index"],
+                    "churn_probability": high_risk_proba[idx],
+                    "risk_level": "Critical" if high_risk_proba[idx] >= 0.85 else "High",
+                    "top_risk_factors": row["top_risk_factors"],
+                    "recommended_actions": ForestModels._map_factors_to_actions(row["top_risk_factors"]),
+                }
+            )
+
+        return pd.DataFrame(interventions)
+
+    @staticmethod
+    def _map_factors_to_actions(risk_factors: str) -> str:
+        """
+        Map risk factors to specific business interventions.
+
+        This is a simplified mapping - in practice, you'd customize this
+        based on your business constraints and A/B test results.
+        """
+        actions = []
+
+        # Contract-related interventions
+        if "Contract_Month-to-month" in risk_factors:
+            actions.append("Offer 1-year contract with 10% discount")
+
+        # Security/service add-on interventions
+        if "OnlineSecurity_No=" in risk_factors or "OnlineSecurity_No " in risk_factors:
+            actions.append("Offer free online security for 3 months")
+        if "TechSupport_No=" in risk_factors or "TechSupport_No " in risk_factors:
+            actions.append("Offer free tech support trial")
+
+        # Payment method interventions
+        if "PaymentMethod_Electronic check" in risk_factors:
+            actions.append("Incentivize auto-pay with credit card ($5/month discount)")
+
+        # Internet service interventions
+        if "InternetService_Fiber optic" in risk_factors:
+            actions.append("Review pricing vs competitors; offer loyalty discount")
+
+        # Billing interventions
+        if "PaperlessBilling_No" in risk_factors:
+            actions.append("Offer paperless billing incentive")
+
+        # Default action
+        if not actions:
+            actions.append("Contact customer for personalized retention offer")
+
+        return " | ".join(actions)
