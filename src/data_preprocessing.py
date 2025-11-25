@@ -723,6 +723,7 @@ class DataPreprocessor:
                 "cumulative_variance": cumulative_variance.tolist(),
                 "total_variance_explained": cumulative_variance[-1],
                 "missing_filled": missing_filled,
+                "loadings": pca.components_.tolist(),  # Component loadings/weights
             }
         )
 
@@ -830,14 +831,18 @@ class DataPreprocessor:
         summary_df = pd.DataFrame(summary_rows)
         return summary_df
 
-    def generate_report(self, output_path: str = "preprocessing_report.csv"):
+    def generate_report(self, output_path: str = "preprocessing_report.xlsx"):
         """
-        Generate a CSV report of all preprocessing operations.
+        Generate an Excel report of all preprocessing operations.
+
+        If PCA was applied, creates two sheets:
+        - 'Preprocessing Steps': Summary of all preprocessing operations
+        - 'PCA Variance': Detailed variance explained by each principal component
 
         Parameters
         ----------
-        output_path : str, optional (default='preprocessing_report.csv')
-            Path where the report CSV will be saved.
+        output_path : str, optional (default='preprocessing_report.xlsx')
+            Path where the report Excel file will be saved.
 
         Returns
         -------
@@ -847,14 +852,61 @@ class DataPreprocessor:
         Examples
         --------
         # Generate report after preprocessing
-        report = preprocessor.generate_report('my_preprocessing_report.csv')
+        report = preprocessor.generate_report('my_preprocessing_report.xlsx')
         """
         if not self.preprocessing_steps:
             report_df = pd.DataFrame({"Message": ["No preprocessing steps were applied"]})
         else:
             report_df = pd.DataFrame(self.preprocessing_steps)
 
-        report_df.to_csv(output_path, index=False)
+        # Check if PCA was applied
+        pca_step = None
+        for step in self.preprocessing_steps:
+            if step.get("step") == "apply_pca":
+                pca_step = step
+                break
+
+        # Save report
+        if output_path.endswith(".csv"):
+            # Legacy support: save as CSV if explicitly requested
+            report_df.to_csv(output_path, index=False)
+        else:
+            # Default: save as Excel with multiple sheets
+            if not output_path.endswith(".xlsx"):
+                output_path = output_path.replace(".csv", ".xlsx")
+
+            with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
+                report_df.to_excel(writer, sheet_name="Preprocessing Steps", index=False)
+
+                # Add PCA variance sheet if PCA was applied
+                if pca_step:
+                    explained_var = pca_step.get("explained_variance", [])
+                    cumulative_var = pca_step.get("cumulative_variance", [])
+
+                    pca_variance_df = pd.DataFrame(
+                        {
+                            "Component": [f"PC{i+1}" for i in range(len(explained_var))],
+                            "Explained Variance": [f"{v:.4f}" for v in explained_var],
+                            "Explained Variance (%)": [f"{v*100:.2f}%" for v in explained_var],
+                            "Cumulative Variance": [f"{v:.4f}" for v in cumulative_var],
+                            "Cumulative Variance (%)": [f"{v*100:.2f}%" for v in cumulative_var],
+                        }
+                    )
+
+                    pca_variance_df.to_excel(writer, sheet_name="PCA Variance", index=False)
+
+                    # Add PCA loadings sheet showing how original features contribute to each PC
+                    loadings = pca_step.get("loadings", [])
+                    original_features = pca_step.get("original_features", [])
+
+                    if loadings and original_features:
+                        loadings_data = {"Feature": original_features}
+                        for i, component_loadings in enumerate(loadings):
+                            loadings_data[f"PC{i+1}"] = [f"{v:.4f}" for v in component_loadings]
+
+                        pca_loadings_df = pd.DataFrame(loadings_data)
+                        pca_loadings_df.to_excel(writer, sheet_name="PCA Loadings", index=False)
+
         return report_df
 
     def reset(self):
