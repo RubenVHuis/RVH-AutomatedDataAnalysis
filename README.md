@@ -23,10 +23,35 @@ See example_analysis.py for an example on how to use this analysis. Perform thes
 
 ## =� Features
 
+### Data Exploration & Analysis
 - **Automated Data Type Detection** - Binary, discrete, continuous, ordinal, and categorical
 - **Smart Visualizations** - Automatic selection of appropriate chart types
 - **Statistical Analysis** - Comprehensive hypothesis testing (t-tests, ANOVA, chi-square, correlation)
 - **Conditioned Analysis** - Analyze variables grouped by target variables
+
+### Data Preprocessing
+- **Missing Value Imputation** - Mean, median, mode, forward/backward fill, KNN
+- **Outlier Detection & Handling** - IQR, Z-score, Isolation Forest methods
+- **Feature Scaling** - StandardScaler, MinMaxScaler, RobustScaler
+- **Feature Encoding** - One-hot, label, ordinal, target encoding
+- **Feature Engineering** - Polynomial features, interaction terms, binning
+
+### Machine Learning Models
+- **Random Forest** - Classification and regression with hyperparameter control
+- **XGBoost** - Gradient boosting with full parameter customization
+- **Feature Importance** - Extract and visualize feature contributions
+- **Model Evaluation** - Comprehensive metrics for classification and regression
+- **Cross-Validation** - K-fold CV with multiple scoring options
+
+### Time Series Forecasting
+- **ARIMA** - AutoRegressive Integrated Moving Average models
+- **SARIMAX** - Seasonal ARIMA with exogenous variables
+- **Auto ARIMA** - Automatic parameter selection via grid search
+- **Prophet** - Meta's forecasting tool for complex seasonality
+- **Diagnostic Tests** - Stationarity testing (ADF), ACF/PACF plots
+- **Forecast Evaluation** - MAE, MSE, RMSE, MAPE, sMAPE metrics
+
+### General Features
 - **Excel Export** - Export statistics and test results
 - **Modular Design** - Clean separation of concerns across multiple modules
 
@@ -40,11 +65,17 @@ DSRepoCICD/
 �� src/
    �� __init__.py
    �� data_visualizer.py       # Visualization methods
-   �� statistical_methods.py   # Statistical tests
+   �� statistical_methods.py   # Statistical tests and hypothesis testing
    �� exploratory_data_review.py  # Initial data exploration
+   �� data_preprocessing.py    # Data cleaning and feature engineering
+   �� model_forest.py          # Random Forest and XGBoost models
+   �� data_wrangling.py        # Data manipulation utilities
+   �� time_series_forecasting.py # ARIMA, SARIMAX, Prophet forecasting
    �� exploratory_data_analysis.py # Conditioned analysis
 �� tests/
    �� test_data_visualizer.py
+   �� test_model_forest.py
+   �� test_time_series_forecasting.py
    �� test_statistical_methods.py
    �� test_integration.py
 �� projects/
@@ -75,6 +106,8 @@ pip install -r requirements-dev.txt
 
 ## =� Quick Start
 
+### Exploratory Data Analysis
+
 ```python
 import pandas as pd
 from src.exploratory_data_review import ExploratoryDataReview
@@ -99,6 +132,89 @@ eda.visualize(save_path='conditioned_viz.png')
 eda.statistics(output_path='statistical_tests.xlsx')
 ```
 
+### Data Preprocessing
+
+```python
+from src.data_preprocessing import DataPreprocessing
+
+# Handle missing values
+df_imputed = DataPreprocessing.impute_missing_values(
+    df, strategy='mean', columns=['age', 'income']
+)
+
+# Detect and remove outliers
+df_clean = DataPreprocessing.remove_outliers_iqr(df, columns=['price'])
+
+# Scale features
+df_scaled = DataPreprocessing.scale_features(df, method='standard')
+
+# Encode categorical variables
+df_encoded = DataPreprocessing.encode_categorical(
+    df, method='onehot', columns=['category', 'region']
+)
+```
+
+### Machine Learning Models
+
+```python
+from src.model_forest import ForestModels
+from sklearn.model_selection import train_test_split
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    df[features], df[target], test_size=0.2, random_state=42
+)
+
+# Train Random Forest Classifier
+model = ForestModels.random_forest_classifier(
+    X_train=X_train,
+    y_train=y_train,
+    n_estimators=100,
+    max_depth=10,
+    random_state=42
+)
+
+# Evaluate model
+results = ForestModels.evaluate_classifier(model, X_test, y_test)
+ForestModels.print_classification_metrics(results)
+
+# Get feature importance
+importance = ForestModels.get_feature_importance(
+    model, feature_names=X_train.columns.tolist()
+)
+```
+
+### Time Series Forecasting
+
+```python
+from src.time_series_forecasting import TimeSeriesForecasting
+import pandas as pd
+
+# Load time series data
+series = pd.read_csv('data/timeseries.csv', parse_dates=['date'], index_col='date')
+
+# Test for stationarity
+adf_result = TimeSeriesForecasting.augmented_dickey_fuller_test(series['value'])
+
+# Fit ARIMA model
+arima_result = TimeSeriesForecasting.arima_model(
+    series=series['value'],
+    order=(1, 1, 1),
+    forecast_periods=30
+)
+
+# Fit Prophet model
+df_prophet = pd.DataFrame({'ds': series.index, 'y': series['value'].values})
+prophet_result = TimeSeriesForecasting.prophet_model(
+    df=df_prophet,
+    forecast_periods=30,
+    freq='D'
+)
+
+# Evaluate forecasts
+metrics = TimeSeriesForecasting.evaluate_forecast(y_true, y_pred)
+```
+
 ## >� Running Tests
 
 ### Run All Tests
@@ -118,6 +234,12 @@ pytest tests/ -v --cov=src --cov-report=html
 ```bash
 # Unit tests only
 pytest tests/test_data_visualizer.py tests/test_statistical_methods.py
+
+# Machine learning tests
+pytest tests/test_model_forest.py
+
+# Time series tests
+pytest tests/test_time_series_forecasting.py
 
 # Integration tests only
 pytest tests/test_integration.py
@@ -234,8 +356,30 @@ Comprehensive test suite:
 - **T-tests**: Independent, paired, one-sample
 - **ANOVA**: One-way and two-way
 - **Chi-square**: Categorical associations
-- **Correlation**: Spearman rank correlation
-- **VIF**: Multicollinearity detection
+- **Fisher's Exact Test**: Exact p-values for 2x2 tables
+- **Correlation**: Spearman rank correlation, correlation ratio
+- **VIF**: Variance Inflation Factor for multicollinearity detection
+- **Multi-arm Bandit**: Thompson Sampling, Epsilon-Greedy
+
+### Machine Learning
+
+Supported algorithms:
+
+- **Random Forest**: Classifier and Regressor with full hyperparameter control
+- **XGBoost**: Gradient boosting with custom objectives and eval metrics
+- **Feature Importance**: Built-in importance extraction and ranking
+- **Model Evaluation**: Accuracy, precision, recall, F1, ROC-AUC, R², RMSE, MAE
+- **Cross-Validation**: K-fold with custom scoring functions
+
+### Time Series Methods
+
+Forecasting techniques:
+
+- **ARIMA**: Classic autoregressive integrated moving average
+- **SARIMAX**: Seasonal ARIMA with exogenous regressors
+- **Auto ARIMA**: Automatic parameter selection (AIC/BIC optimization)
+- **Prophet**: Facebook's Prophet for multiple seasonality patterns
+- **Diagnostics**: ADF test, ACF/PACF plots, residual analysis
 
 ## =� Dependencies
 
@@ -247,6 +391,10 @@ Comprehensive test suite:
 - scipy >= 1.10.0
 - statsmodels >= 0.14.0
 - openpyxl >= 3.1.0
+- scikit-learn >= 1.3.0
+- imbalanced-learn >= 0.11.0
+- xgboost >= 2.0.0
+- prophet >= 1.1.0
 
 ### Development
 
