@@ -1,8 +1,9 @@
 import pandas as pd
 import numpy as np
 import copy
+import warnings
 from scipy import stats
-from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, RobustScaler, OneHotEncoder
 from sklearn.decomposition import PCA
 from imblearn.over_sampling import SMOTE, RandomOverSampler
 from imblearn.under_sampling import RandomUnderSampler
@@ -106,9 +107,19 @@ class DataPreprocessor:
 
         return numerical_cols
 
-    def encode_categorical(self, columns: list = None, method: str = "onehot", drop_first: bool = False):
+    def encode_categorical(
+        self,
+        columns: list = None,
+        method: str = "onehot",
+        drop_first: bool = False,
+        handle_unknown: str = "ignore",
+        encoder: OneHotEncoder = None,
+    ):
         """
         Encode categorical variables using one-hot encoding.
+
+        Uses sklearn's OneHotEncoder for proper train/test workflow support.
+        The fitted encoder is stored and can be reused on test data.
 
         Parameters
         ----------
@@ -117,7 +128,14 @@ class DataPreprocessor:
         method : str, optional (default='onehot')
             Encoding method. Currently supports 'onehot' for one-hot encoding.
         drop_first : bool, optional (default=False)
-            Whether to drop the first category to avoid multicollinearity.
+            Whether to drop the first category to avoid multicollinearity (drop='first' in sklearn).
+        handle_unknown : str, optional (default='ignore')
+            How to handle unknown categories in test data:
+            - 'ignore': Unknown categories encoded as all zeros
+            - 'error': Raise error if unknown category encountered
+        encoder : OneHotEncoder, optional
+            Pre-fitted encoder from training data. Use this to apply the same encoding
+            to test data. If None, fits a new encoder on current dataframe.
 
         Returns
         -------
@@ -126,14 +144,28 @@ class DataPreprocessor:
 
         Examples
         --------
-        # Encode all categorical columns
+        # WORKFLOW 1: Encode entire dataset before splitting (knows all categories)
         preprocessor.encode_categorical()
+
+        # WORKFLOW 2: Encode after train/test split (fit on train, apply to test)
+        # On training data:
+        train_prep = DataPreprocessor(X_train, metadata)
+        train_prep.encode_categorical()
+        X_train_encoded = train_prep.get_dataframe()
+
+        # On test data (reuse fitted encoder):
+        test_prep = DataPreprocessor(X_test, metadata)
+        test_prep.encode_categorical(encoder=train_prep.fitted_objects['encoder_onehot'])
+        X_test_encoded = test_prep.get_dataframe()
 
         # Encode specific columns
         preprocessor.encode_categorical(columns=['gender', 'region'])
 
         # Encode with drop_first to avoid dummy variable trap
         preprocessor.encode_categorical(drop_first=True)
+
+        # Handle unknown categories with error instead of ignore
+        preprocessor.encode_categorical(handle_unknown='error')
         """
         if method != "onehot":
             raise ValueError(f"Method '{method}' not supported. Currently only 'onehot' is available.")
@@ -150,8 +182,35 @@ class DataPreprocessor:
         if not columns:
             return self
 
-        # Perform one-hot encoding
-        df_encoded = pd.get_dummies(self.df, columns=columns, drop_first=drop_first, dtype=int)
+        # Separate categorical and non-categorical columns
+        X_categorical = self.df[columns]
+        X_other = self.df.drop(columns=columns)
+
+        # Use pre-fitted encoder or create new one
+        if encoder is not None:
+            # Use provided encoder (for test data)
+            ohe = encoder
+            is_fitted = True
+        else:
+            # Create and fit new encoder (for train data or entire dataset)
+            drop_param = "first" if drop_first else None
+            ohe = OneHotEncoder(drop=drop_param, handle_unknown=handle_unknown, sparse_output=False)
+            ohe.fit(X_categorical)
+            is_fitted = False
+
+        # Transform
+        X_encoded = ohe.transform(X_categorical)
+
+        # Create column names
+        feature_names = ohe.get_feature_names_out(columns)
+        df_encoded = pd.DataFrame(X_encoded, columns=feature_names, index=self.df.index)
+
+        # Combine with non-categorical columns
+        df_result = pd.concat([X_other.reset_index(drop=True), df_encoded.reset_index(drop=True)], axis=1)
+
+        # Store fitted encoder (only if we created a new one)
+        if not is_fitted:
+            self.fitted_objects["encoder_onehot"] = ohe
 
         # Track preprocessing step
         self.preprocessing_steps.append(
@@ -161,26 +220,32 @@ class DataPreprocessor:
                 "columns": columns,
                 "n_columns_encoded": len(columns),
                 "drop_first": drop_first,
+                "handle_unknown": handle_unknown,
+                "used_prefitted_encoder": is_fitted,
                 "original_shape": self.df.shape,
-                "new_shape": df_encoded.shape,
+                "new_shape": df_result.shape,
+                "categories_learned": {col: cats.tolist() for col, cats in zip(columns, ohe.categories_)},
             }
         )
 
-        self.df = df_encoded
+        self.df = df_result
         return self
 
-    def impute_missing(self, columns: list = None, strategy: str = "mean"):
+    def impute_missing(self, columns: list = None, data_type: str = None, strategy: str = "mean"):
         """
         Impute missing values using statistical methods (use after train/test split).
 
         This method uses dataset statistics (mean, median, mode) for imputation.
-        IMPORTANT: Apply after splitting data to avoid data leakage. Fit the imputer
-        on training data, then apply the same transformation to test data.
+        Apply before or after splitting the data as desired. Fit the imputer
+        on training data, then apply the same transformation to test data if applied after splitting.
 
         Parameters
         ----------
         columns : list, optional
-            Columns to impute. If None, imputes all columns with missing values.
+            Specific columns to impute. If None and data_type is None, imputes all columns with missing values.
+        data_type : str, optional
+            Impute all columns of this data type ('binary', 'continuous', 'discrete', 'categorical', 'ordinal').
+            If provided, takes precedence over columns parameter. Requires metadata.
         strategy : str, optional (default='mean')
             Imputation strategy:
             - 'mean': Replace with column mean (numerical only)
@@ -202,9 +267,29 @@ class DataPreprocessor:
 
         # Impute with mode (works for categorical too)
         preprocessor.impute_missing(columns=['category'], strategy='mode')
+
+        # Impute all continuous columns with median
+        preprocessor.impute_missing(data_type='continuous', strategy='median')
+
+        # Impute all categorical columns with mode
+        preprocessor.impute_missing(data_type='categorical', strategy='mode')
         """
+        # Determine which columns to impute based on data_type
+        if data_type is not None:
+            if not self.metadata:
+                raise ValueError("Metadata required to filter by data_type. Pass metadata to DataPreprocessor constructor.")
+
+            columns = []
+            for col, meta in self.metadata.items():
+                manual_type = meta.get("manual_data_type", "")
+                auto_type = meta.get("auto_data_type", "")
+                col_type = manual_type if manual_type else auto_type
+
+                if col_type == data_type and col in self.df.columns and self.df[col].isnull().any():
+                    columns.append(col)
+
         # Determine which columns to impute
-        if columns is None:
+        elif columns is None:
             columns = [col for col in self.df.columns if self.df[col].isnull().any()]
         else:
             # Validate columns exist
@@ -259,6 +344,7 @@ class DataPreprocessor:
             {
                 "step": "impute_missing",
                 "strategy": strategy,
+                "data_type_filter": data_type,
                 "columns": columns,
                 "missing_before": missing_counts_before,
                 "missing_after": missing_counts_after,
@@ -629,7 +715,7 @@ class DataPreprocessor:
         """
         Apply Principal Component Analysis (PCA) for dimensionality reduction.
 
-        PCA is suitable for numerical data only. Categorical variables should be
+        PCA is primarily designed for numerical data. Categorical variables should be
         encoded before applying PCA.
 
         Parameters
@@ -679,6 +765,14 @@ class DataPreprocessor:
         # Check for missing values
         missing_filled = False
         if X.isnull().any().any():
+            missing_count = X.isnull().sum().sum()
+            warnings.warn(
+                f"PCA: Found {missing_count} missing values in selected columns. "
+                f"Automatically imputing with column means. "
+                f"Consider using impute_missing() before PCA for better control over imputation strategy.",
+                UserWarning,
+                stacklevel=2,
+            )
             X = X.fillna(X.mean())
             missing_filled = True
 
