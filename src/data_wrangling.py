@@ -136,7 +136,7 @@ class DataWrangling:
 
         return self
 
-    def impute_missing(self, columns: list = None, strategy: str = "constant", fill_value=None):
+    def impute_missing(self, columns: list = None, data_type: str = None, strategy: str = "constant", fill_value=None):
         """
         Impute missing values using non-statistical methods (no data leakage).
 
@@ -147,7 +147,10 @@ class DataWrangling:
         Parameters
         ----------
         columns : list, optional
-            Columns to impute. If None, imputes all columns with missing values.
+            Specific columns to impute. If None and data_type is None, imputes all columns with missing values.
+        data_type : str, optional
+            Impute all columns of this data type ('binary', 'continuous', 'discrete', 'categorical', 'ordinal').
+            If provided, takes precedence over columns parameter. Requires metadata.
         strategy : str, optional (default='constant')
             Imputation strategy:
             - 'constant': Replace with specified fill_value
@@ -171,9 +174,29 @@ class DataWrangling:
 
         # Backward fill missing values
         wrangler.impute_missing(strategy='bfill')
+
+        # Impute all continuous columns with 0
+        wrangler.impute_missing(data_type='continuous', strategy='constant', fill_value=0)
+
+        # Forward-fill all categorical columns
+        wrangler.impute_missing(data_type='categorical', strategy='ffill')
         """
+        # Determine which columns to impute based on data_type
+        if data_type is not None:
+            if not self.metadata:
+                raise ValueError("Metadata required to filter by data_type. Pass metadata to DataWrangling constructor.")
+
+            columns = []
+            for col, meta in self.metadata.items():
+                manual_type = meta.get("manual_data_type", "")
+                auto_type = meta.get("auto_data_type", "")
+                col_type = manual_type if manual_type else auto_type
+
+                if col_type == data_type and col in self.df.columns and self.df[col].isnull().any():
+                    columns.append(col)
+
         # Determine which columns to impute
-        if columns is None:
+        elif columns is None:
             columns = [col for col in self.df.columns if self.df[col].isnull().any()]
         else:
             # Validate columns exist
@@ -196,11 +219,11 @@ class DataWrangling:
 
         elif strategy == "ffill":
             for col in columns:
-                self.df[col] = self.df[col].fillna(method="ffill")
+                self.df[col] = self.df[col].ffill()
 
         elif strategy == "bfill":
             for col in columns:
-                self.df[col] = self.df[col].fillna(method="bfill")
+                self.df[col] = self.df[col].bfill()
 
         else:
             raise ValueError(f"Invalid strategy: {strategy}. Choose from: 'constant', 'ffill', 'bfill'")
@@ -213,6 +236,7 @@ class DataWrangling:
             {
                 "step": "impute_missing",
                 "strategy": strategy,
+                "data_type_filter": data_type,
                 "columns": columns,
                 "missing_before": missing_counts_before,
                 "missing_after": missing_counts_after,

@@ -691,6 +691,9 @@ class ForestModels:
         """
         Create targeted intervention strategies for high-risk customers.
 
+        ⚠️ NOTE: This method uses example business logic from the Telco Customer Churn
+        dataset. Customize _map_factors_to_actions() for your specific domain.
+
         Parameters
         ----------
         model : trained classifier
@@ -756,8 +759,17 @@ class ForestModels:
         """
         Map risk factors to specific business interventions.
 
-        This is a simplified mapping - in practice, you'd customize this
-        based on your business constraints and A/B test results.
+        ⚠️ EXAMPLE CODE: This method contains hardcoded mappings specific to the
+        Telco Customer Churn dataset and should NOT be used directly for other domains.
+
+        Customize this method based on:
+        - Your business domain and available interventions
+        - A/B test results showing effective retention strategies
+        - Budget constraints and operational capabilities
+        - Legal/regulatory requirements for customer communications
+
+        This serves as a template showing how to translate feature importance
+        into actionable business recommendations.
         """
         actions = []
 
