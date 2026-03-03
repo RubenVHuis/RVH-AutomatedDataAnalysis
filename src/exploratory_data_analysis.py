@@ -5,8 +5,8 @@ import copy
 from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor as vif_calc
 
-from src.data_visualizer import DataVisualizer
-from src.statistical_methods import StatisticalMethods
+from .data_visualizer import DataVisualizer
+from .statistical_methods import StatisticalMethods
 
 
 class ExploratoryDataAnalysis:
@@ -165,11 +165,11 @@ class ExploratoryDataAnalysis:
         Determine appropriate plot type for bivariate analysis.
 
         Rules:
-        - Numeric vs Numeric: scatter_2d or hexbin (based on data size)
+        - Numeric/Temporal vs Numeric/Temporal: scatter_2d or hexbin (based on data size)
         - Categorical vs Categorical: grouped_bar_chart
-        - Categorical vs Numeric: grouped_box_plot or grouped_bar_chart (proportions)
+        - Categorical vs Numeric/Temporal: grouped_box_plot or grouped_bar_chart (proportions)
         """
-        numeric_types = ["continuous", "discrete"]
+        numeric_types = ["continuous", "discrete", "temporal"]
         categorical_types = ["binary", "categorical", "ordinal"]
 
         var_is_numeric = var_type in numeric_types
@@ -547,7 +547,7 @@ class ExploratoryDataAnalysis:
 
         # Separate variables by type
         categorical_types = ["binary", "categorical", "ordinal"]
-        numerical_types = ["continuous", "discrete"]
+        numerical_types = ["continuous", "discrete", "temporal"]
 
         categorical_vars = []
         numerical_vars = []
@@ -562,6 +562,10 @@ class ExploratoryDataAnalysis:
                 categorical_vars.append(col)
             elif data_type in numerical_types:
                 numerical_vars.append(col)
+                # Convert temporal columns to numeric for statistical analysis
+                if data_type == "temporal" and col in self.df.columns:
+                    # Note: Temporal will be converted to numeric timestamp in statistical methods
+                    pass
 
         # Identify target/conditioning variables
         target_vars = set()
