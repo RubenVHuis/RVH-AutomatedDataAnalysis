@@ -143,7 +143,7 @@ class ExploratoryDataReview:
         else:
             # --- 5 Categorical ---
             # Return categorical if nothing else matched, for now
-            if pd.api.types.is_categorical_dtype(series) and series.cat.ordered:
+            if isinstance(series.dtype, pd.CategoricalDtype) and series.cat.ordered:
                 return "ordinal"
             else:
                 return "categorical"
@@ -471,7 +471,8 @@ class ExploratoryDataReview:
                 temporal_df = self.df[temporal_cols].copy()
                 for col in temporal_cols:
                     temporal_df[col] = pd.to_datetime(temporal_df[col], errors="coerce")
-                desc_temporal = temporal_df.describe(datetime_is_numeric=True)
+                # Use include='all' to get stats for datetime columns (works across pandas versions)
+                desc_temporal = temporal_df.describe(include='all')
                 desc_temporal.to_excel(writer, sheet_name="Descriptive Stats (Temporal)")
 
             # Sheet 6: Metadata
