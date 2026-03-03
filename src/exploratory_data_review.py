@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import copy
-from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor as vif_calc
 
 from .data_visualizer import DataVisualizer
