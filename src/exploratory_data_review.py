@@ -73,15 +73,22 @@ class ExploratoryDataReview:
         n_unique = s.nunique()
 
         # --- 2 Check for datetime/date patterns ---
-        # Try converting to datetime - if successful, it's temporal
-        try:
-            # Use original series (not stringified) for better datetime detection
-            datetime_converted = pd.to_datetime(series, errors="coerce")
-            # If more than 50% convert successfully, treat as temporal
-            if datetime_converted.notna().mean() > 0.5:
-                return "temporal"
-        except (ValueError, TypeError):
-            pass
+        # Only check for temporal if dtype suggests it might be (object or existing datetime)
+        # Skip numeric types to avoid expensive pd.to_datetime on pure numbers
+        if series.dtype == 'object' or pd.api.types.is_datetime64_any_dtype(series):
+            try:
+                # Use original series (not stringified) for better datetime detection
+                # Sample first to avoid slow conversion on large datasets
+                sample_size = min(100, len(series))
+                sample = series.dropna().head(sample_size)
+
+                if len(sample) > 0:
+                    datetime_converted = pd.to_datetime(sample, errors="coerce")
+                    # If more than 50% of sample converts successfully, treat as temporal
+                    if datetime_converted.notna().mean() > 0.5:
+                        return "temporal"
+            except (ValueError, TypeError):
+                pass
 
         # --- 3 Check if the data is binary after cleaning ---
         if n_unique == 2:
