@@ -5,7 +5,7 @@ import copy
 from scipy import stats
 from statsmodels.stats.outliers_influence import variance_inflation_factor as vif_calc
 
-from src.data_visualizer import DataVisualizer
+from .data_visualizer import DataVisualizer
 
 
 class ExploratoryDataReview:
@@ -41,7 +41,7 @@ class ExploratoryDataReview:
 
     def _detect_data_type(self, series: pd.Series) -> str:
         """
-        Infer whether a pandas Series is binary, discrete, continuous, ordinal, or categorical.
+        Infer whether a pandas Series is binary, discrete, continuous, ordinal, categorical, or temporal.
 
         Parameters
         ----------
@@ -51,7 +51,7 @@ class ExploratoryDataReview:
         Returns
         -------
         str
-            One of: 'binary', 'discrete', 'continuous', 'ordinal', 'categorical'.
+            One of: 'binary', 'discrete', 'continuous', 'ordinal', 'categorical', 'temporal'.
         """
 
         # --- 1 Clean and normalize ---
@@ -72,7 +72,18 @@ class ExploratoryDataReview:
             return "no data left after cleaning"
         n_unique = s.nunique()
 
-        # --- 2 Check if the data is binary after cleaning ---
+        # --- 2 Check for datetime/date patterns ---
+        # Try converting to datetime - if successful, it's temporal
+        try:
+            # Use original series (not stringified) for better datetime detection
+            datetime_converted = pd.to_datetime(series, errors='coerce')
+            # If more than 50% convert successfully, treat as temporal
+            if datetime_converted.notna().mean() > 0.5:
+                return "temporal"
+        except (ValueError, TypeError):
+            pass
+
+        # --- 3 Check if the data is binary after cleaning ---
         if n_unique == 2:
             return "binary"
 
@@ -111,6 +122,12 @@ class ExploratoryDataReview:
             # Drops all rows that could not be converted to numeric
             s_numeric = numeric_converted.dropna()
             n_unique_num = s_numeric.nunique()
+
+            # Check if binary (0/1 values only, even if only one is present in data)
+            # This handles cases like NULL + 1 (missing 0) from SQL boolean columns
+            unique_values = set(s_numeric.unique())
+            if unique_values.issubset({0, 1, 0.0, 1.0}):
+                return "binary"
 
             # Helper: check if floats are actually integers
             def is_integer_like(x: pd.Series, tol=1e-12):
@@ -189,6 +206,9 @@ class ExploratoryDataReview:
         # --- 2️⃣ Check data type ---
         if data_type == "binary":
             return "stacked_bar"
+
+        if data_type == "temporal":
+            return "histogram"  # Temporal distribution over time
 
         if data_type in ["ordinal", "categorical"]:
             n_categories = series.nunique()
@@ -312,6 +332,7 @@ class ExploratoryDataReview:
         - categorical → should be object
         - ordinal → should be object or categorical
         - binary → can be object, int64, float64, or bool
+        - temporal → should be datetime64 or object
 
         Parameters
         ----------
@@ -346,6 +367,12 @@ class ExploratoryDataReview:
         elif determined_type == "binary":
             valid_dtypes = ["object", "int64", "int32", "int16", "int8", "float64", "float32", "bool"]
             return "OK" if pandas_dtype in valid_dtypes else "NOT OK"
+
+        elif determined_type == "temporal":
+            valid_dtypes = ["object", "datetime64[ns]", "datetime64[ns, UTC]"]
+            # Also check for any datetime64 variant
+            is_datetime = pandas_dtype.startswith("datetime64")
+            return "OK" if (pandas_dtype in valid_dtypes or is_datetime) else "NOT OK"
 
         else:
             # Unknown or no data type determined
@@ -432,7 +459,22 @@ class ExploratoryDataReview:
                 desc_categorical = categorical_df.describe(include="all")
                 desc_categorical.to_excel(writer, sheet_name="Descriptive Stats (Categorical)")
 
-            # Sheet 5: Metadata
+            # Sheet 5: Descriptive Statistics (Temporal) - using metadata
+            temporal_cols = []
+            for col, meta in self.metadata.items():
+                data_type = meta.get("manual_data_type") or meta.get("auto_data_type", "")
+                if data_type == "temporal":
+                    temporal_cols.append(col)
+
+            if temporal_cols:
+                # Convert to datetime and get descriptive stats
+                temporal_df = self.df[temporal_cols].copy()
+                for col in temporal_cols:
+                    temporal_df[col] = pd.to_datetime(temporal_df[col], errors="coerce")
+                desc_temporal = temporal_df.describe(datetime_is_numeric=True)
+                desc_temporal.to_excel(writer, sheet_name="Descriptive Stats (Temporal)")
+
+            # Sheet 6: Metadata
             if not self.metadata:
                 self.generate_metadata()
 

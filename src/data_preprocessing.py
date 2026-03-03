@@ -57,10 +57,13 @@ class DataPreprocessor:
         """
         Get list of categorical columns based on metadata or dtype.
 
+        Note: Temporal columns are excluded. Convert temporal data to categorical features
+        manually if needed (e.g., extract month, day of week, season).
+
         Returns
         -------
         list
-            List of categorical column names.
+            List of categorical column names (excludes temporal).
         """
         categorical_types = ["binary", "categorical", "ordinal"]
         categorical_cols = []
@@ -84,10 +87,13 @@ class DataPreprocessor:
         """
         Get list of numerical columns based on metadata or dtype.
 
+        Note: Temporal columns are excluded. Convert temporal data to numerical features
+        manually if needed (e.g., timestamp, days since epoch, time differences).
+
         Returns
         -------
         list
-            List of numerical column names.
+            List of numerical column names (excludes temporal).
         """
         numerical_types = ["continuous", "discrete"]
         numerical_cols = []
