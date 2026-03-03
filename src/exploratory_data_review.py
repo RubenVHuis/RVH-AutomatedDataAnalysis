@@ -75,7 +75,7 @@ class ExploratoryDataReview:
         # --- 2 Check for datetime/date patterns ---
         # Only check for temporal if dtype suggests it might be (object or existing datetime)
         # Skip numeric types to avoid expensive pd.to_datetime on pure numbers
-        if series.dtype == 'object' or pd.api.types.is_datetime64_any_dtype(series):
+        if series.dtype == "object" or pd.api.types.is_datetime64_any_dtype(series):
             try:
                 # Use original series (not stringified) for better datetime detection
                 # Sample first to avoid slow conversion on large datasets
@@ -479,7 +479,7 @@ class ExploratoryDataReview:
                 for col in temporal_cols:
                     temporal_df[col] = pd.to_datetime(temporal_df[col], errors="coerce")
                 # Use include='all' to get stats for datetime columns (works across pandas versions)
-                desc_temporal = temporal_df.describe(include='all')
+                desc_temporal = temporal_df.describe(include="all")
                 desc_temporal.to_excel(writer, sheet_name="Descriptive Stats (Temporal)")
 
             # Sheet 6: Metadata
