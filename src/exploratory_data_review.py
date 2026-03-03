@@ -76,7 +76,7 @@ class ExploratoryDataReview:
         # Try converting to datetime - if successful, it's temporal
         try:
             # Use original series (not stringified) for better datetime detection
-            datetime_converted = pd.to_datetime(series, errors='coerce')
+            datetime_converted = pd.to_datetime(series, errors="coerce")
             # If more than 50% convert successfully, treat as temporal
             if datetime_converted.notna().mean() > 0.5:
                 return "temporal"
