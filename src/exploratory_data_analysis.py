@@ -321,6 +321,9 @@ class ExploratoryDataAnalysis:
         else:
             all_vars = variables
 
+        # Filter out temporal variables (they need specialized time-series visualizations)
+        all_vars = [v for v in all_vars if self._get_effective_data_type(v) != "temporal"]
+
         # Apply mode logic
         if mode == "default":
             # All variables except conditioning variables
