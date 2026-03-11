@@ -16,6 +16,44 @@ class DataVisualizer:
     - Trivariate (3D): Relationships with additional grouping/color dimension
     """
 
+    # Define consistent color mapping for binary data
+    BINARY_COLORS = {
+        0: "#1f77b4",  # Blue for 0/False/No
+        1: "#ff7f0e",  # Orange for 1/True/Yes
+        0.0: "#1f77b4",
+        1.0: "#ff7f0e",
+        False: "#1f77b4",
+        True: "#ff7f0e",
+        "No": "#1f77b4",
+        "Yes": "#ff7f0e",
+    }
+
+    @staticmethod
+    def _get_binary_colors(values):
+        """
+        Get consistent colors for binary data.
+
+        Parameters
+        ----------
+        values : array-like
+            Values to get colors for (should be binary: 0/1, True/False, etc.)
+
+        Returns
+        -------
+        list
+            List of colors matching the values
+        """
+        colors = []
+        sorted_values = sorted(values)  # Ensure consistent ordering
+        for val in values:
+            if val in DataVisualizer.BINARY_COLORS:
+                colors.append(DataVisualizer.BINARY_COLORS[val])
+            else:
+                # For non-standard binary values, use order-based coloring
+                # Lower value = blue, higher value = orange
+                colors.append("#1f77b4" if val == sorted_values[0] else "#ff7f0e")
+        return colors
+
     # ==================== UNIVARIATE (1D) ====================
 
     @staticmethod
@@ -72,12 +110,18 @@ class DataVisualizer:
     @staticmethod
     def stacked_bar(ax, series: pd.Series, title: str, show_proportions: bool = False):
         """Create a stacked bar chart for binary/categorical data."""
-        value_counts = series.value_counts()
+        # Sort values to ensure consistent ordering (especially for binary 0/1)
+        value_counts = series.value_counts().sort_index()
+
+        # Check if binary and get consistent colors
+        unique_vals = set(series.dropna().unique())
+        is_binary = unique_vals.issubset({0, 1, 0.0, 1.0}) or unique_vals.issubset({True, False}) or len(unique_vals) == 2
+        colors = DataVisualizer._get_binary_colors(value_counts.index) if is_binary else None
 
         if show_proportions:
             # Show proportions
-            proportions = series.value_counts(normalize=True)
-            bars = ax.bar(range(len(proportions)), proportions.values, alpha=0.8)
+            proportions = series.value_counts(normalize=True).sort_index()
+            bars = ax.bar(range(len(proportions)), proportions.values, alpha=0.8, color=colors)
             ax.set_ylabel("Proportion")
 
             # Add count labels
@@ -86,7 +130,7 @@ class DataVisualizer:
             ax.set_ylim(0, max(proportions.values) * 1.15)
         else:
             # Show counts
-            bars = ax.bar(range(len(value_counts)), value_counts.values, alpha=0.8)
+            bars = ax.bar(range(len(value_counts)), value_counts.values, alpha=0.8, color=colors)
             ax.set_ylabel("Count")
 
         ax.set_xticks(range(len(value_counts)))
@@ -245,10 +289,65 @@ class DataVisualizer:
         """Bar chart grouped by another column (e.g., gender by churn)."""
         cross_tab = pd.crosstab(series, group_by)
 
-        if show_proportions:
-            # Calculate proportions within each group
+        # Check if series is binary (only 0 and 1, or True/False, or two values)
+        unique_vals = set(series.dropna().unique())
+        is_binary = unique_vals.issubset({0, 1, 0.0, 1.0}) or unique_vals.issubset({True, False}) or len(unique_vals) == 2
+
+        if show_proportions and is_binary:
+            # For binary data, show rate of positive outcome (1 or True or second value) per group
+            # This is more interpretable than stacked proportions
+            groups = cross_tab.columns
+            positive_value = max(unique_vals)  # Assume higher value is "positive" outcome
+
+            rates = []
+            counts_total = []
+            counts_positive = []
+
+            for group in groups:
+                total = cross_tab[group].sum()
+                # Get count of positive outcome (if it exists in this group)
+                if positive_value in cross_tab.index:
+                    positive_count = cross_tab.loc[positive_value, group]
+                else:
+                    positive_count = 0
+
+                rate = positive_count / total if total > 0 else 0
+                rates.append(rate)
+                counts_total.append(int(total))
+                counts_positive.append(int(positive_count))
+
+            # Create bar chart of rates
+            bars = ax.bar(range(len(groups)), rates, alpha=0.8)
+            ax.set_xticks(range(len(groups)))
+            ax.set_xticklabels(groups, rotation=45, ha="right")
+            ax.set_ylabel(f"Rate of {series.name}={positive_value}")
+            ax.set_ylim(0, 1.0)
+
+            # Add rate and count labels on bars
+            for i, (bar, rate, n_pos, n_tot) in enumerate(zip(bars, rates, counts_positive, counts_total)):
+                height = bar.get_height()
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height,
+                    f"{rate:.1%}\n({n_pos}/{n_tot})",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                )
+
+        elif show_proportions:
+            # Non-binary: show stacked proportions (original behavior)
             proportions = cross_tab.div(cross_tab.sum(axis=0), axis=1)
-            proportions.plot(kind="bar", ax=ax, alpha=0.8)
+            # Sort both to ensure consistent ordering
+            proportions = proportions.sort_index()
+            proportions = proportions[sorted(proportions.columns)]
+            # Check if the series values are binary
+            series_unique = set(series.dropna().unique())
+            series_is_binary = (
+                series_unique.issubset({0, 1, 0.0, 1.0}) or series_unique.issubset({True, False}) or len(series_unique) == 2
+            )
+            colors = DataVisualizer._get_binary_colors(proportions.index) if series_is_binary else None
+            proportions.plot(kind="bar", ax=ax, alpha=0.8, color=colors)
             ax.set_ylabel("Proportion")
 
             # Add count labels on bars
@@ -259,14 +358,23 @@ class DataVisualizer:
                     labels.append(f"n={count}")
                 ax.bar_label(container, labels=labels, fontsize=7)
         else:
-            cross_tab.plot(kind="bar", ax=ax, alpha=0.8)
+            # Sort to ensure consistent ordering
+            cross_tab = cross_tab.sort_index()
+            cross_tab = cross_tab[sorted(cross_tab.columns)]
+            # Check if the series values are binary
+            series_unique = set(series.dropna().unique())
+            series_is_binary = (
+                series_unique.issubset({0, 1, 0.0, 1.0}) or series_unique.issubset({True, False}) or len(series_unique) == 2
+            )
+            colors = DataVisualizer._get_binary_colors(cross_tab.index) if series_is_binary else None
+            cross_tab.plot(kind="bar", ax=ax, alpha=0.8, color=colors)
             ax.set_ylabel("Count")
 
         ax.set_title(title, fontsize=10, fontweight="bold")
-        ax.set_xlabel(series.name)
-        ax.legend(title=group_by.name, fontsize=8)
+        ax.set_xlabel(group_by.name)
+        if not (show_proportions and is_binary):
+            ax.legend(title=series.name, fontsize=8)
         ax.grid(True, alpha=0.3)
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha="right")
 
     @staticmethod
     def grouped_histogram(ax, data_col: pd.Series, group_col: pd.Series, title: str, show_stats: bool = False):
@@ -326,12 +434,20 @@ class DataVisualizer:
     @staticmethod
     def stacked_bar_2d(ax, series: pd.Series, group_by: pd.Series, title: str, show_proportions: bool = False):
         """Stacked bar chart showing distribution of one variable within another."""
-        cross_tab = pd.crosstab(series, group_by)
+        # Sort indices to ensure consistent ordering
+        cross_tab = pd.crosstab(series, group_by).sort_index()
+
+        # Check if group_by is binary and get consistent colors
+        unique_vals = set(group_by.dropna().unique())
+        is_binary = unique_vals.issubset({0, 1, 0.0, 1.0}) or unique_vals.issubset({True, False}) or len(unique_vals) == 2
+        # Sort columns to ensure consistent ordering
+        cross_tab = cross_tab[sorted(cross_tab.columns)]
+        colors = DataVisualizer._get_binary_colors(cross_tab.columns) if is_binary else None
 
         if show_proportions:
             # Calculate proportions within each category
             proportions = cross_tab.div(cross_tab.sum(axis=1), axis=0)
-            proportions.plot(kind="bar", stacked=True, ax=ax, alpha=0.8)
+            proportions.plot(kind="bar", stacked=True, ax=ax, alpha=0.8, color=colors)
             ax.set_ylabel("Proportion")
 
             # Add count labels (total for each category)
@@ -339,7 +455,7 @@ class DataVisualizer:
             for i, (category, total) in enumerate(category_totals.items()):
                 ax.text(i, 1.02, f"n={total}", ha="center", fontsize=7)
         else:
-            cross_tab.plot(kind="bar", stacked=True, ax=ax, alpha=0.8)
+            cross_tab.plot(kind="bar", stacked=True, ax=ax, alpha=0.8, color=colors)
             ax.set_ylabel("Count")
 
         ax.set_title(title, fontsize=10, fontweight="bold")
