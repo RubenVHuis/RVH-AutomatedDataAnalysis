@@ -4,7 +4,9 @@ Comprehensive example for comparing forest-based models (Random Forest vs XGBoos
 Demonstrates:
 - Data loading and preprocessing
 - One-hot encoding of categorical features using DataPreprocessor class
-- Model comparison with grid search and cross-validation
+- Grid search hyperparameter tuning for Random Forest
+- Grid search hyperparameter tuning for XGBoost
+- Manual comparison of models based on cross-validation scores
 - Best model selection
 - Model evaluation on test set
 - Feature importance analysis
@@ -52,43 +54,86 @@ feature_columns = X.columns.tolist()
 # Split data: 70% train, 30% test
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
 
-# ==================== 2. DEFINE MODEL CONFIGURATIONS ====================
+# ==================== 2. GRID SEARCH FOR RANDOM FOREST ====================
 
-# Configuration for Random Forest and XGBoost with hyperparameter grids
-# Note: Using smaller grids for demonstration purposes
-models_config = {
-    "random_forest_classifier": {
-        "n_estimators": [50, 100],
-        "max_depth": [5, 10, None],
-        "min_samples_split": [2, 5],
-        "max_features": ["sqrt", "log2"],
-    },
-    "xgboost_classifier": {
-        "n_estimators": [50, 100],
-        "max_depth": [3, 5],
-        "learning_rate": [0.1, 0.3],
-        "subsample": [0.8, 1.0],
-        "colsample_bytree": [0.8, 1.0],
-    },
+rf_param_grid = {
+    "n_estimators": [50, 100],
+    "max_depth": [5, 10, None],
+    "min_samples_split": [2, 5],
+    "max_features": ["sqrt", "log2"],
 }
 
-# ==================== 3. COMPARE MODELS ====================
-
-comparison = ForestModels.compare_models(
-    models_config=models_config, X_train=X_train, y_train=y_train, cv=5, scoring="accuracy", verbose=0
+rf_results = ForestModels.grid_search_hyperparameters(
+    model_type="random_forest_classifier",
+    X_train=X_train,
+    y_train=y_train,
+    param_grid=rf_param_grid,
+    cv=5,
+    scoring="accuracy",
+    verbose=0,
 )
 
-# ==================== 4. EVALUATE BEST MODEL ON TEST SET ====================
+# ==================== 3. GRID SEARCH FOR XGBOOST ====================
 
-best_model = comparison["best_model"]
+xgb_param_grid = {
+    "n_estimators": [50, 100],
+    "max_depth": [3, 5],
+    "learning_rate": [0.1, 0.3],
+    "subsample": [0.8, 1.0],
+    "colsample_bytree": [0.8, 1.0],
+}
+
+xgb_results = ForestModels.grid_search_hyperparameters(
+    model_type="xgboost_classifier",
+    X_train=X_train,
+    y_train=y_train,
+    param_grid=xgb_param_grid,
+    cv=5,
+    scoring="accuracy",
+    verbose=0,
+)
+
+# ==================== 4. COMPARE MODELS ====================
+
+# Create comparison dataframe
+comparison_data = [
+    {
+        "model_type": "random_forest_classifier",
+        "cv_score": rf_results["best_score"],
+        "best_params": str(rf_results["best_params"]),
+        "n_param_combinations": len(rf_results["cv_results"]),
+    },
+    {
+        "model_type": "xgboost_classifier",
+        "cv_score": xgb_results["best_score"],
+        "best_params": str(xgb_results["best_params"]),
+        "n_param_combinations": len(xgb_results["cv_results"]),
+    },
+]
+
+comparison_df = pd.DataFrame(comparison_data).sort_values("cv_score", ascending=False).reset_index(drop=True)
+
+# Determine best model
+if rf_results["best_score"] > xgb_results["best_score"]:
+    best_model_type = "random_forest_classifier"
+    best_model = rf_results["best_model"]
+    best_params = rf_results["best_params"]
+    best_score = rf_results["best_score"]
+else:
+    best_model_type = "xgboost_classifier"
+    best_model = xgb_results["best_model"]
+    best_params = xgb_results["best_params"]
+    best_score = xgb_results["best_score"]
+
+# ==================== 5. EVALUATE BEST MODEL ON TEST SET ====================
 
 test_results = ForestModels.evaluate_classifier(model=best_model, X_test=X_test, y_test=y_test, average="binary")
 
-# ==================== 5. FEATURE IMPORTANCE ====================
+# ==================== 6. FEATURE IMPORTANCE ====================
 
 feature_importance = ForestModels.get_feature_importance(model=best_model, feature_names=feature_columns)
 
-# ==================== 6. SUMMARY OUTPUT ====================
+# ==================== 7. SUMMARY OUTPUT ====================
 
 output_path = Path(__file__).parent / "forest_comparison_results.txt"
 
@@ -111,15 +156,27 @@ with open(output_path, "w") as f:
 
     f.write("MODEL COMPARISON RESULTS\n")
     f.write("-" * 70 + "\n")
-    f.write(comparison["comparison_df"].to_string(index=False))
+    f.write(comparison_df.to_string(index=False))
     f.write("\n\n")
 
-    f.write("BEST MODEL DETAILS\n")
+    f.write("RANDOM FOREST RESULTS\n")
     f.write("-" * 70 + "\n")
-    f.write(f"Model type: {comparison['best_model_type']}\n")
-    f.write(f"CV score (accuracy): {comparison['best_score']:.4f}\n")
+    f.write(f"CV score (accuracy): {rf_results['best_score']:.4f}\n")
+    f.write(f"Best hyperparameters: {rf_results['best_params']}\n")
+    f.write(f"Parameter combinations tested: {len(rf_results['cv_results'])}\n\n")
+
+    f.write("XGBOOST RESULTS\n")
+    f.write("-" * 70 + "\n")
+    f.write(f"CV score (accuracy): {xgb_results['best_score']:.4f}\n")
+    f.write(f"Best hyperparameters: {xgb_results['best_params']}\n")
+    f.write(f"Parameter combinations tested: {len(xgb_results['cv_results'])}\n\n")
+
+    f.write("BEST MODEL SELECTED\n")
+    f.write("-" * 70 + "\n")
+    f.write(f"Model type: {best_model_type}\n")
+    f.write(f"CV score (accuracy): {best_score:.4f}\n")
     f.write(f"Best hyperparameters:\n")
-    for param, value in comparison["best_params"].items():
+    for param, value in best_params.items():
         f.write(f"  {param}: {value}\n")
     f.write("\n")
 
@@ -148,11 +205,13 @@ with open(output_path, "w") as f:
 print("=" * 70)
 print("FOREST MODEL COMPARISON COMPLETED")
 print("=" * 70)
-print(f"\nBest Model: {comparison['best_model_type']}")
-print(f"CV Accuracy: {comparison['best_score']:.4f}")
+print(f"\nRandom Forest CV Accuracy: {rf_results['best_score']:.4f}")
+print(f"XGBoost CV Accuracy: {xgb_results['best_score']:.4f}")
+print(f"\nBest Model: {best_model_type}")
+print(f"CV Accuracy: {best_score:.4f}")
 print(f"Test Accuracy: {test_results['accuracy']:.4f}")
 print(f"\nResults saved to: {output_path}")
 print("\nModel Comparison:")
-print(comparison["comparison_df"].to_string(index=False))
+print(comparison_df.to_string(index=False))
 print("\nTop 3 Features:")
 print(feature_importance.head(3).to_string(index=False))
