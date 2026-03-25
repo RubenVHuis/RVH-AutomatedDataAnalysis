@@ -1,0 +1,60 @@
+======================================================================
+FOREST MODEL COMPARISON - COMPREHENSIVE ANALYSIS
+======================================================================
+
+DATASET INFORMATION
+----------------------------------------------------------------------
+Total samples: 20
+Training samples: 14 (70.0%)
+Test samples: 6 (30.0%)
+Numeric features: age, income, tenure, performance_score
+Categorical features (encoded using DataPreprocessor): gender, department, satisfaction
+Encoding method: One-hot encoding with drop_first=True
+Total features after encoding: 9
+Encoded feature names: age, income, tenure, performance_score, gender_Male, department_Marketing, department_Sales, satisfaction_Low, satisfaction_Medium
+Target: promoted
+
+MODEL COMPARISON RESULTS
+----------------------------------------------------------------------
+              model_type  best_score                                                                                           best_params  n_param_combinations
+random_forest_classifier    0.866667                  {'max_depth': 5, 'max_features': 'sqrt', 'min_samples_split': 2, 'n_estimators': 50}                    24
+      xgboost_classifier    0.800000 {'colsample_bytree': 0.8, 'learning_rate': 0.1, 'max_depth': 3, 'n_estimators': 50, 'subsample': 0.8}                    32
+
+BEST MODEL DETAILS
+----------------------------------------------------------------------
+Model type: random_forest_classifier
+CV score (accuracy): 0.8667
+Best hyperparameters:
+  max_depth: 5
+  max_features: sqrt
+  min_samples_split: 2
+  n_estimators: 50
+
+TEST SET EVALUATION
+----------------------------------------------------------------------
+Accuracy:  1.0000
+Precision: 1.0000
+Recall:    1.0000
+F1 Score:  1.0000
+ROC AUC:   1.0000
+
+Confusion Matrix:
+[[3 0]
+ [0 3]]
+
+FEATURE IMPORTANCE (Top Features)
+----------------------------------------------------------------------
+             feature  importance
+   performance_score    0.334302
+              income    0.247025
+              tenure    0.217371
+                 age    0.161816
+department_Marketing    0.021543
+         gender_Male    0.013853
+ satisfaction_Medium    0.004091
+    department_Sales    0.000000
+    satisfaction_Low    0.000000
+
+======================================================================
+ANALYSIS COMPLETE
+======================================================================

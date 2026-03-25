@@ -18,16 +18,9 @@ class TestForestModels:
     def classification_data(self):
         """Create sample classification dataset."""
         np.random.seed(42)
-        X, y = make_classification(
-            n_samples=200,
-            n_features=10,
-            n_informative=5,
-            n_redundant=2,
-            n_classes=2,
-            random_state=42
-        )
-        X_df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
-        y_series = pd.Series(y, name='target')
+        X, y = make_classification(n_samples=200, n_features=10, n_informative=5, n_redundant=2, n_classes=2, random_state=42)
+        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        y_series = pd.Series(y, name="target")
 
         # Split into train and test
         split_idx = int(0.8 * len(X_df))
@@ -42,15 +35,9 @@ class TestForestModels:
     def regression_data(self):
         """Create sample regression dataset."""
         np.random.seed(42)
-        X, y = make_regression(
-            n_samples=200,
-            n_features=10,
-            n_informative=5,
-            noise=10.0,
-            random_state=42
-        )
-        X_df = pd.DataFrame(X, columns=[f'feature_{i}' for i in range(X.shape[1])])
-        y_series = pd.Series(y, name='target')
+        X, y = make_regression(n_samples=200, n_features=10, n_informative=5, noise=10.0, random_state=42)
+        X_df = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+        y_series = pd.Series(y, name="target")
 
         # Split into train and test
         split_idx = int(0.8 * len(X_df))
@@ -68,11 +55,7 @@ class TestForestModels:
         X_train, X_test, y_train, y_test = classification_data
 
         model = ForestModels.random_forest_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            max_depth=5,
-            random_state=42
+            X_train=X_train, y_train=y_train, n_estimators=50, max_depth=5, random_state=42
         )
 
         assert isinstance(model, RandomForestClassifier)
@@ -89,11 +72,7 @@ class TestForestModels:
         X_train, X_test, y_train, y_test = regression_data
 
         model = ForestModels.random_forest_regressor(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            max_depth=5,
-            random_state=42
+            X_train=X_train, y_train=y_train, n_estimators=50, max_depth=5, random_state=42
         )
 
         assert isinstance(model, RandomForestRegressor)
@@ -115,15 +94,15 @@ class TestForestModels:
             n_estimators=100,
             max_depth=10,
             min_samples_split=5,
-            criterion='entropy',
-            class_weight='balanced',
-            random_state=42
+            criterion="entropy",
+            class_weight="balanced",
+            random_state=42,
         )
 
         assert model.n_estimators == 100
         assert model.max_depth == 10
         assert model.min_samples_split == 5
-        assert model.criterion == 'entropy'
+        assert model.criterion == "entropy"
 
     # ==================== XGBOOST TESTS ====================
 
@@ -132,12 +111,7 @@ class TestForestModels:
         X_train, X_test, y_train, y_test = classification_data
 
         model = ForestModels.xgboost_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            max_depth=3,
-            learning_rate=0.1,
-            random_state=42
+            X_train=X_train, y_train=y_train, n_estimators=50, max_depth=3, learning_rate=0.1, random_state=42
         )
 
         assert isinstance(model, xgb.XGBClassifier)
@@ -154,12 +128,7 @@ class TestForestModels:
         X_train, X_test, y_train, y_test = regression_data
 
         model = ForestModels.xgboost_regressor(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            max_depth=3,
-            learning_rate=0.1,
-            random_state=42
+            X_train=X_train, y_train=y_train, n_estimators=50, max_depth=3, learning_rate=0.1, random_state=42
         )
 
         assert isinstance(model, xgb.XGBRegressor)
@@ -186,7 +155,7 @@ class TestForestModels:
             gamma=1.0,
             reg_alpha=0.1,
             reg_lambda=1.5,
-            random_state=42
+            random_state=42,
         )
 
         assert model.n_estimators == 100
@@ -201,61 +170,42 @@ class TestForestModels:
         """Test feature importance extraction from Random Forest."""
         X_train, _, y_train, _ = classification_data
 
-        model = ForestModels.random_forest_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model = ForestModels.random_forest_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
 
-        importance_df = ForestModels.get_feature_importance(
-            model=model,
-            feature_names=X_train.columns.tolist()
-        )
+        importance_df = ForestModels.get_feature_importance(model=model, feature_names=X_train.columns.tolist())
 
         assert isinstance(importance_df, pd.DataFrame)
-        assert 'feature' in importance_df.columns
-        assert 'importance' in importance_df.columns
+        assert "feature" in importance_df.columns
+        assert "importance" in importance_df.columns
         assert len(importance_df) == X_train.shape[1]
-        assert all(importance_df['importance'] >= 0)
+        assert all(importance_df["importance"] >= 0)
         # Check sorted in descending order
-        assert all(importance_df['importance'].iloc[i] >= importance_df['importance'].iloc[i+1]
-                   for i in range(len(importance_df)-1))
+        assert all(
+            importance_df["importance"].iloc[i] >= importance_df["importance"].iloc[i + 1]
+            for i in range(len(importance_df) - 1)
+        )
 
     def test_get_feature_importance_xgboost(self, classification_data):
         """Test feature importance extraction from XGBoost."""
         X_train, _, y_train, _ = classification_data
 
-        model = ForestModels.xgboost_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model = ForestModels.xgboost_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
 
-        importance_df = ForestModels.get_feature_importance(
-            model=model,
-            feature_names=X_train.columns.tolist()
-        )
+        importance_df = ForestModels.get_feature_importance(model=model, feature_names=X_train.columns.tolist())
 
         assert isinstance(importance_df, pd.DataFrame)
         assert len(importance_df) == X_train.shape[1]
-        assert all(importance_df['importance'] >= 0)
+        assert all(importance_df["importance"] >= 0)
 
     def test_get_feature_importance_no_names(self, classification_data):
         """Test feature importance without providing feature names."""
         X_train, _, y_train, _ = classification_data
 
-        model = ForestModels.random_forest_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model = ForestModels.random_forest_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
 
         importance_df = ForestModels.get_feature_importance(model=model)
 
-        assert all(importance_df['feature'].str.startswith('Feature_'))
+        assert all(importance_df["feature"].str.startswith("Feature_"))
 
     # ==================== EVALUATION TESTS ====================
 
@@ -263,97 +213,70 @@ class TestForestModels:
         """Test classifier evaluation."""
         X_train, X_test, y_train, y_test = classification_data
 
-        model = ForestModels.random_forest_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model = ForestModels.random_forest_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
 
-        results = ForestModels.evaluate_classifier(
-            model=model,
-            X_test=X_test,
-            y_test=y_test
-        )
+        results = ForestModels.evaluate_classifier(model=model, X_test=X_test, y_test=y_test)
 
         # Check all expected keys are present
-        assert 'predictions' in results
-        assert 'probabilities' in results
-        assert 'accuracy' in results
-        assert 'precision' in results
-        assert 'recall' in results
-        assert 'f1_score' in results
-        assert 'roc_auc' in results
-        assert 'confusion_matrix' in results
-        assert 'classification_report' in results
+        assert "predictions" in results
+        assert "probabilities" in results
+        assert "accuracy" in results
+        assert "precision" in results
+        assert "recall" in results
+        assert "f1_score" in results
+        assert "roc_auc" in results
+        assert "confusion_matrix" in results
+        assert "classification_report" in results
 
         # Check metric ranges
-        assert 0 <= results['accuracy'] <= 1
-        assert 0 <= results['precision'] <= 1
-        assert 0 <= results['recall'] <= 1
-        assert 0 <= results['f1_score'] <= 1
-        assert results['roc_auc'] is None or (0 <= results['roc_auc'] <= 1)
+        assert 0 <= results["accuracy"] <= 1
+        assert 0 <= results["precision"] <= 1
+        assert 0 <= results["recall"] <= 1
+        assert 0 <= results["f1_score"] <= 1
+        assert results["roc_auc"] is None or (0 <= results["roc_auc"] <= 1)
 
         # Check shapes
-        assert len(results['predictions']) == len(X_test)
-        assert results['confusion_matrix'].shape == (2, 2)
+        assert len(results["predictions"]) == len(X_test)
+        assert results["confusion_matrix"].shape == (2, 2)
 
     def test_evaluate_regressor(self, regression_data):
         """Test regressor evaluation."""
         X_train, X_test, y_train, y_test = regression_data
 
-        model = ForestModels.random_forest_regressor(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model = ForestModels.random_forest_regressor(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
 
-        results = ForestModels.evaluate_regressor(
-            model=model,
-            X_test=X_test,
-            y_test=y_test
-        )
+        results = ForestModels.evaluate_regressor(model=model, X_test=X_test, y_test=y_test)
 
         # Check all expected keys are present
-        assert 'predictions' in results
-        assert 'mse' in results
-        assert 'rmse' in results
-        assert 'mae' in results
-        assert 'r2' in results
-        assert 'residuals' in results
+        assert "predictions" in results
+        assert "mse" in results
+        assert "rmse" in results
+        assert "mae" in results
+        assert "r2" in results
+        assert "residuals" in results
 
         # Check metric properties
-        assert results['mse'] >= 0
-        assert results['rmse'] >= 0
-        assert results['mae'] >= 0
-        assert results['rmse'] == results['mse'] ** 0.5
+        assert results["mse"] >= 0
+        assert results["rmse"] >= 0
+        assert results["mae"] >= 0
+        assert results["rmse"] == results["mse"] ** 0.5
 
         # Check shapes
-        assert len(results['predictions']) == len(X_test)
-        assert len(results['residuals']) == len(X_test)
+        assert len(results["predictions"]) == len(X_test)
+        assert len(results["residuals"]) == len(X_test)
 
     def test_evaluate_xgboost_classifier(self, classification_data):
         """Test XGBoost classifier evaluation."""
         X_train, X_test, y_train, y_test = classification_data
 
-        model = ForestModels.xgboost_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model = ForestModels.xgboost_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
 
-        results = ForestModels.evaluate_classifier(
-            model=model,
-            X_test=X_test,
-            y_test=y_test
-        )
+        results = ForestModels.evaluate_classifier(model=model, X_test=X_test, y_test=y_test)
 
-        assert 'accuracy' in results
-        assert 'f1_score' in results
-        assert 'roc_auc' in results
-        assert 0 <= results['accuracy'] <= 1
+        assert "accuracy" in results
+        assert "f1_score" in results
+        assert "roc_auc" in results
+        assert 0 <= results["accuracy"] <= 1
 
     # ==================== CROSS-VALIDATION TESTS ====================
 
@@ -363,24 +286,18 @@ class TestForestModels:
 
         model = RandomForestClassifier(n_estimators=50, random_state=42)
 
-        cv_results = ForestModels.cross_validate_model(
-            model=model,
-            X=X_train,
-            y=y_train,
-            cv=3,
-            scoring='accuracy'
-        )
+        cv_results = ForestModels.cross_validate_model(model=model, X=X_train, y=y_train, cv=3, scoring="accuracy")
 
-        assert 'scores' in cv_results
-        assert 'mean_score' in cv_results
-        assert 'std_score' in cv_results
-        assert 'min_score' in cv_results
-        assert 'max_score' in cv_results
+        assert "scores" in cv_results
+        assert "mean_score" in cv_results
+        assert "std_score" in cv_results
+        assert "min_score" in cv_results
+        assert "max_score" in cv_results
 
-        assert len(cv_results['scores']) == 3
-        assert 0 <= cv_results['mean_score'] <= 1
-        assert cv_results['std_score'] >= 0
-        assert cv_results['min_score'] <= cv_results['mean_score'] <= cv_results['max_score']
+        assert len(cv_results["scores"]) == 3
+        assert 0 <= cv_results["mean_score"] <= 1
+        assert cv_results["std_score"] >= 0
+        assert cv_results["min_score"] <= cv_results["mean_score"] <= cv_results["max_score"]
 
     def test_cross_validate_regressor(self, regression_data):
         """Test cross-validation for regressor."""
@@ -388,16 +305,10 @@ class TestForestModels:
 
         model = RandomForestRegressor(n_estimators=50, random_state=42)
 
-        cv_results = ForestModels.cross_validate_model(
-            model=model,
-            X=X_train,
-            y=y_train,
-            cv=3,
-            scoring='r2'
-        )
+        cv_results = ForestModels.cross_validate_model(model=model, X=X_train, y=y_train, cv=3, scoring="r2")
 
-        assert len(cv_results['scores']) == 3
-        assert cv_results['std_score'] >= 0
+        assert len(cv_results["scores"]) == 3
+        assert cv_results["std_score"] >= 0
 
     # ==================== DETERMINISM TESTS ====================
 
@@ -405,20 +316,10 @@ class TestForestModels:
         """Test that Random Forest produces identical results with same random_state."""
         X_train, X_test, y_train, _ = classification_data
 
-        model1 = ForestModels.random_forest_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model1 = ForestModels.random_forest_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
         predictions1 = model1.predict(X_test)
 
-        model2 = ForestModels.random_forest_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model2 = ForestModels.random_forest_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
         predictions2 = model2.predict(X_test)
 
         assert np.array_equal(predictions1, predictions2)
@@ -427,23 +328,294 @@ class TestForestModels:
         """Test that XGBoost produces identical results with same random_state."""
         X_train, X_test, y_train, _ = classification_data
 
-        model1 = ForestModels.xgboost_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model1 = ForestModels.xgboost_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
         predictions1 = model1.predict(X_test)
 
-        model2 = ForestModels.xgboost_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            n_estimators=50,
-            random_state=42
-        )
+        model2 = ForestModels.xgboost_classifier(X_train=X_train, y_train=y_train, n_estimators=50, random_state=42)
         predictions2 = model2.predict(X_test)
 
         assert np.array_equal(predictions1, predictions2)
+
+    # ==================== GRID SEARCH TESTS ====================
+
+    def test_grid_search_random_forest_classifier(self, classification_data):
+        """Test grid search for Random Forest Classifier."""
+        X_train, X_test, y_train, y_test = classification_data
+
+        param_grid = {"n_estimators": [10, 50], "max_depth": [3, 5], "min_samples_split": [2, 5]}
+
+        results = ForestModels.grid_search_hyperparameters(
+            model_type="random_forest_classifier",
+            X_train=X_train,
+            y_train=y_train,
+            param_grid=param_grid,
+            cv=3,
+            scoring="accuracy",
+            verbose=0,
+        )
+
+        # Check all expected keys are present
+        assert "best_params" in results
+        assert "best_score" in results
+        assert "best_model" in results
+        assert "cv_results" in results
+        assert "grid_search" in results
+
+        # Check types
+        assert isinstance(results["best_params"], dict)
+        assert isinstance(results["best_score"], (int, float))
+        assert isinstance(results["best_model"], RandomForestClassifier)
+        assert isinstance(results["cv_results"], pd.DataFrame)
+
+        # Check best params are from the grid
+        assert results["best_params"]["n_estimators"] in param_grid["n_estimators"]
+        assert results["best_params"]["max_depth"] in param_grid["max_depth"]
+
+        # Check model can predict
+        predictions = results["best_model"].predict(X_test)
+        assert len(predictions) == len(X_test)
+
+    def test_grid_search_random_forest_regressor(self, regression_data):
+        """Test grid search for Random Forest Regressor."""
+        X_train, X_test, y_train, y_test = regression_data
+
+        param_grid = {"n_estimators": [10, 50], "max_depth": [3, 5]}
+
+        results = ForestModels.grid_search_hyperparameters(
+            model_type="random_forest_regressor",
+            X_train=X_train,
+            y_train=y_train,
+            param_grid=param_grid,
+            cv=3,
+            scoring="r2",
+            verbose=0,
+        )
+
+        assert isinstance(results["best_model"], RandomForestRegressor)
+        assert "best_params" in results
+        assert 0 <= results["best_score"] <= 1  # R² score should be in valid range
+
+        # Check model can predict
+        predictions = results["best_model"].predict(X_test)
+        assert len(predictions) == len(X_test)
+
+    def test_grid_search_xgboost_classifier(self, classification_data):
+        """Test grid search for XGBoost Classifier."""
+        X_train, X_test, y_train, y_test = classification_data
+
+        param_grid = {"n_estimators": [10, 30], "max_depth": [3, 5], "learning_rate": [0.1, 0.3]}
+
+        results = ForestModels.grid_search_hyperparameters(
+            model_type="xgboost_classifier",
+            X_train=X_train,
+            y_train=y_train,
+            param_grid=param_grid,
+            cv=3,
+            scoring="accuracy",
+            verbose=0,
+        )
+
+        assert isinstance(results["best_model"], xgb.XGBClassifier)
+        assert results["best_params"]["learning_rate"] in param_grid["learning_rate"]
+
+        # Check model can predict
+        predictions = results["best_model"].predict(X_test)
+        assert len(predictions) == len(X_test)
+
+    def test_grid_search_xgboost_regressor(self, regression_data):
+        """Test grid search for XGBoost Regressor."""
+        X_train, X_test, y_train, y_test = regression_data
+
+        param_grid = {"n_estimators": [10, 30], "max_depth": [3, 5], "learning_rate": [0.1, 0.3]}
+
+        results = ForestModels.grid_search_hyperparameters(
+            model_type="xgboost_regressor",
+            X_train=X_train,
+            y_train=y_train,
+            param_grid=param_grid,
+            cv=3,
+            scoring="neg_mean_squared_error",
+            verbose=0,
+        )
+
+        assert isinstance(results["best_model"], xgb.XGBRegressor)
+        assert "best_params" in results
+        assert results["best_score"] <= 0  # neg_mean_squared_error is negative
+
+        # Check model can predict
+        predictions = results["best_model"].predict(X_test)
+        assert len(predictions) == len(X_test)
+
+    def test_grid_search_invalid_model_type(self, classification_data):
+        """Test grid search with invalid model type."""
+        X_train, _, y_train, _ = classification_data
+
+        param_grid = {"n_estimators": [10, 50]}
+
+        with pytest.raises(ValueError, match="Invalid model_type"):
+            ForestModels.grid_search_hyperparameters(
+                model_type="invalid_model", X_train=X_train, y_train=y_train, param_grid=param_grid, cv=3
+            )
+
+    def test_grid_search_cv_results_structure(self, classification_data):
+        """Test that cv_results DataFrame has expected structure."""
+        X_train, _, y_train, _ = classification_data
+
+        param_grid = {"n_estimators": [10, 20], "max_depth": [3, 5]}
+
+        results = ForestModels.grid_search_hyperparameters(
+            model_type="random_forest_classifier", X_train=X_train, y_train=y_train, param_grid=param_grid, cv=3, verbose=0
+        )
+
+        cv_results = results["cv_results"]
+
+        # Check it's a DataFrame
+        assert isinstance(cv_results, pd.DataFrame)
+
+        # Check expected columns exist
+        assert "mean_test_score" in cv_results.columns
+        assert "std_test_score" in cv_results.columns
+        assert "params" in cv_results.columns
+
+        # Check number of parameter combinations tested
+        # 2 n_estimators x 2 max_depth = 4 combinations
+        assert len(cv_results) == 4
+
+    # ==================== COMPARE MODELS TESTS ====================
+
+    def test_compare_models_classifiers(self, classification_data):
+        """Test compare_models with multiple classifiers."""
+        X_train, X_test, y_train, y_test = classification_data
+
+        models_config = {
+            "random_forest_classifier": {"n_estimators": [10, 20], "max_depth": [3, 5]},
+            "xgboost_classifier": {"n_estimators": [10, 20], "max_depth": [3, 5], "learning_rate": [0.1, 0.3]},
+        }
+
+        comparison = ForestModels.compare_models(
+            models_config=models_config, X_train=X_train, y_train=y_train, cv=3, scoring="accuracy", verbose=0
+        )
+
+        # Check all expected keys
+        assert "best_model_type" in comparison
+        assert "best_model" in comparison
+        assert "best_params" in comparison
+        assert "best_score" in comparison
+        assert "all_results" in comparison
+        assert "comparison_df" in comparison
+
+        # Check types
+        assert isinstance(comparison["best_model_type"], str)
+        assert isinstance(comparison["best_params"], dict)
+        assert isinstance(comparison["best_score"], (int, float))
+        assert isinstance(comparison["comparison_df"], pd.DataFrame)
+
+        # Check best_model_type is valid
+        assert comparison["best_model_type"] in models_config.keys()
+
+        # Check comparison_df structure
+        assert len(comparison["comparison_df"]) == 2  # Two models compared
+        assert "model_type" in comparison["comparison_df"].columns
+        assert "best_score" in comparison["comparison_df"].columns
+        assert "best_params" in comparison["comparison_df"].columns
+
+        # Check comparison_df is sorted by score (descending)
+        scores = comparison["comparison_df"]["best_score"].tolist()
+        assert scores == sorted(scores, reverse=True)
+
+        # Check all_results has entries for both models
+        assert len(comparison["all_results"]) == 2
+        assert "random_forest_classifier" in comparison["all_results"]
+        assert "xgboost_classifier" in comparison["all_results"]
+
+        # Check best model can predict
+        predictions = comparison["best_model"].predict(X_test)
+        assert len(predictions) == len(X_test)
+
+    def test_compare_models_regressors(self, regression_data):
+        """Test compare_models with multiple regressors."""
+        X_train, X_test, y_train, y_test = regression_data
+
+        models_config = {
+            "random_forest_regressor": {"n_estimators": [10, 20], "max_depth": [3, 5]},
+            "xgboost_regressor": {"n_estimators": [10, 20], "max_depth": [3, 5]},
+        }
+
+        comparison = ForestModels.compare_models(
+            models_config=models_config, X_train=X_train, y_train=y_train, cv=3, scoring="r2", verbose=0
+        )
+
+        assert comparison["best_model_type"] in models_config.keys()
+        assert len(comparison["all_results"]) == 2
+
+        # Check best model can predict
+        predictions = comparison["best_model"].predict(X_test)
+        assert len(predictions) == len(X_test)
+
+    def test_compare_models_single_model(self, classification_data):
+        """Test compare_models with a single model."""
+        X_train, X_test, y_train, y_test = classification_data
+
+        models_config = {"random_forest_classifier": {"n_estimators": [10, 20], "max_depth": [3, 5]}}
+
+        comparison = ForestModels.compare_models(
+            models_config=models_config, X_train=X_train, y_train=y_train, cv=3, scoring="accuracy", verbose=0
+        )
+
+        assert comparison["best_model_type"] == "random_forest_classifier"
+        assert len(comparison["comparison_df"]) == 1
+        assert len(comparison["all_results"]) == 1
+
+    def test_compare_models_empty_config(self, classification_data):
+        """Test compare_models with empty configuration."""
+        X_train, _, y_train, _ = classification_data
+
+        models_config = {}
+
+        with pytest.raises(ValueError, match="models_config cannot be empty"):
+            ForestModels.compare_models(models_config=models_config, X_train=X_train, y_train=y_train, cv=3)
+
+    def test_compare_models_best_selection(self, classification_data):
+        """Test that compare_models correctly selects the best model."""
+        X_train, _, y_train, _ = classification_data
+
+        models_config = {
+            "random_forest_classifier": {"n_estimators": [10, 20], "max_depth": [3, 5]},
+            "xgboost_classifier": {"n_estimators": [10, 20], "max_depth": [3, 5]},
+        }
+
+        comparison = ForestModels.compare_models(
+            models_config=models_config, X_train=X_train, y_train=y_train, cv=3, scoring="accuracy", verbose=0
+        )
+
+        # The best model should have the highest score in comparison_df
+        best_score_from_df = comparison["comparison_df"].iloc[0]["best_score"]
+        assert comparison["best_score"] == best_score_from_df
+
+        # The best model type should match the first row in comparison_df
+        best_type_from_df = comparison["comparison_df"].iloc[0]["model_type"]
+        assert comparison["best_model_type"] == best_type_from_df
+
+    def test_compare_models_all_results_structure(self, classification_data):
+        """Test structure of all_results in compare_models."""
+        X_train, _, y_train, _ = classification_data
+
+        models_config = {
+            "random_forest_classifier": {"n_estimators": [10], "max_depth": [3]},
+            "xgboost_classifier": {"n_estimators": [10], "max_depth": [3]},
+        }
+
+        comparison = ForestModels.compare_models(
+            models_config=models_config, X_train=X_train, y_train=y_train, cv=3, verbose=0
+        )
+
+        # Check each entry in all_results has expected structure
+        for model_type, results in comparison["all_results"].items():
+            assert "best_params" in results
+            assert "best_score" in results
+            assert "best_model" in results
+            assert "cv_results" in results
+            assert "grid_search" in results
 
     # ==================== PRINT TESTS ====================
 
@@ -451,11 +623,7 @@ class TestForestModels:
         """Test printing classification metrics."""
         X_train, X_test, y_train, y_test = classification_data
 
-        model = ForestModels.random_forest_classifier(
-            X_train=X_train,
-            y_train=y_train,
-            random_state=42
-        )
+        model = ForestModels.random_forest_classifier(X_train=X_train, y_train=y_train, random_state=42)
 
         results = ForestModels.evaluate_classifier(model, X_test, y_test)
         ForestModels.print_classification_metrics(results)
@@ -470,11 +638,7 @@ class TestForestModels:
         """Test printing regression metrics."""
         X_train, X_test, y_train, y_test = regression_data
 
-        model = ForestModels.random_forest_regressor(
-            X_train=X_train,
-            y_train=y_train,
-            random_state=42
-        )
+        model = ForestModels.random_forest_regressor(X_train=X_train, y_train=y_train, random_state=42)
 
         results = ForestModels.evaluate_regressor(model, X_test, y_test)
         ForestModels.print_regression_metrics(results)
