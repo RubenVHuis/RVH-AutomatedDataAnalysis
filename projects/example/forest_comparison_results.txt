@@ -16,11 +16,23 @@ Target: promoted
 
 MODEL COMPARISON RESULTS
 ----------------------------------------------------------------------
-              model_type  best_score                                                                                           best_params  n_param_combinations
-random_forest_classifier    0.866667                  {'max_depth': 5, 'max_features': 'sqrt', 'min_samples_split': 2, 'n_estimators': 50}                    24
-      xgboost_classifier    0.800000 {'colsample_bytree': 0.8, 'learning_rate': 0.1, 'max_depth': 3, 'n_estimators': 50, 'subsample': 0.8}                    32
+              model_type  cv_score                                                                                           best_params  n_param_combinations
+random_forest_classifier  0.866667                  {'max_depth': 5, 'max_features': 'sqrt', 'min_samples_split': 2, 'n_estimators': 50}                    24
+      xgboost_classifier  0.800000 {'colsample_bytree': 0.8, 'learning_rate': 0.1, 'max_depth': 3, 'n_estimators': 50, 'subsample': 0.8}                    32
 
-BEST MODEL DETAILS
+RANDOM FOREST RESULTS
+----------------------------------------------------------------------
+CV score (accuracy): 0.8667
+Best hyperparameters: {'max_depth': 5, 'max_features': 'sqrt', 'min_samples_split': 2, 'n_estimators': 50}
+Parameter combinations tested: 24
+
+XGBOOST RESULTS
+----------------------------------------------------------------------
+CV score (accuracy): 0.8000
+Best hyperparameters: {'colsample_bytree': 0.8, 'learning_rate': 0.1, 'max_depth': 3, 'n_estimators': 50, 'subsample': 0.8}
+Parameter combinations tested: 32
+
+BEST MODEL SELECTED
 ----------------------------------------------------------------------
 Model type: random_forest_classifier
 CV score (accuracy): 0.8667
