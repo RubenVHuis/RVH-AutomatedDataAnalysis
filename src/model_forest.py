@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import cross_val_score, GridSearchCV
 from sklearn.metrics import (
     accuracy_score,
     precision_score,
@@ -418,6 +418,317 @@ class ForestModels:
             "std_score": scores.std(),
             "min_score": scores.min(),
             "max_score": scores.max(),
+        }
+
+    @staticmethod
+    def grid_search_hyperparameters(
+        model_type: str,
+        X_train: pd.DataFrame,
+        y_train: pd.Series,
+        param_grid: Dict[str, List],
+        cv: int = 5,
+        scoring: Optional[str] = None,
+        n_jobs: int = -1,
+        verbose: int = 1,
+        return_train_score: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Perform grid search to find optimal hyperparameters for forest models.
+
+        Parameters
+        ----------
+        model_type : str
+            Type of model to tune. Options:
+            - 'random_forest_classifier'
+            - 'random_forest_regressor'
+            - 'xgboost_classifier'
+            - 'xgboost_regressor'
+        X_train : pd.DataFrame
+            Training features.
+        y_train : pd.Series
+            Training target values.
+        param_grid : dict
+            Dictionary with parameter names (str) as keys and lists of
+            parameter settings to try as values.
+        cv : int, optional (default=5)
+            Number of cross-validation folds.
+        scoring : str or None, optional (default=None)
+            Scoring metric for evaluation. If None, uses model's default.
+            Classification examples: 'accuracy', 'f1', 'roc_auc', 'precision'
+            Regression examples: 'r2', 'neg_mean_squared_error', 'neg_mean_absolute_error'
+        n_jobs : int, optional (default=-1)
+            Number of parallel jobs. -1 means using all processors.
+        verbose : int, optional (default=1)
+            Controls the verbosity: the higher, the more messages.
+        return_train_score : bool, optional (default=False)
+            Whether to include training scores in cv_results_.
+
+        Returns
+        -------
+        dict
+            Dictionary containing:
+            - best_params: Best hyperparameters found
+            - best_score: Best cross-validation score
+            - best_model: Trained model with best parameters
+            - cv_results: Complete cross-validation results
+            - grid_search: GridSearchCV object for further analysis
+
+        Examples
+        --------
+        # Random Forest Classifier
+        param_grid = {
+            'n_estimators': [50, 100, 200],
+            'max_depth': [5, 10, 15, None],
+            'min_samples_split': [2, 5, 10],
+            'min_samples_leaf': [1, 2, 4],
+            'max_features': ['sqrt', 'log2']
+        }
+
+        results = ForestModels.grid_search_hyperparameters(
+            model_type='random_forest_classifier',
+            X_train=X_train,
+            y_train=y_train,
+            param_grid=param_grid,
+            cv=5,
+            scoring='accuracy'
+        )
+
+        print(f"Best parameters: {results['best_params']}")
+        print(f"Best score: {results['best_score']:.4f}")
+        best_model = results['best_model']
+
+        # XGBoost Regressor
+        param_grid = {
+            'n_estimators': [50, 100, 200],
+            'max_depth': [3, 5, 7],
+            'learning_rate': [0.01, 0.1, 0.3],
+            'subsample': [0.8, 1.0],
+            'colsample_bytree': [0.8, 1.0]
+        }
+
+        results = ForestModels.grid_search_hyperparameters(
+            model_type='xgboost_regressor',
+            X_train=X_train,
+            y_train=y_train,
+            param_grid=param_grid,
+            cv=5,
+            scoring='r2'
+        )
+        """
+        # Define base models
+        model_map = {
+            "random_forest_classifier": RandomForestClassifier(random_state=42, n_jobs=n_jobs),
+            "random_forest_regressor": RandomForestRegressor(random_state=42, n_jobs=n_jobs),
+            "xgboost_classifier": xgb.XGBClassifier(random_state=42, n_jobs=n_jobs),
+            "xgboost_regressor": xgb.XGBRegressor(random_state=42, n_jobs=n_jobs),
+        }
+
+        if model_type not in model_map:
+            raise ValueError(f"Invalid model_type '{model_type}'. " f"Choose from: {list(model_map.keys())}")
+
+        base_model = model_map[model_type]
+
+        # Perform grid search
+        grid_search = GridSearchCV(
+            estimator=base_model,
+            param_grid=param_grid,
+            cv=cv,
+            scoring=scoring,
+            n_jobs=n_jobs,
+            verbose=verbose,
+            return_train_score=return_train_score,
+        )
+
+        grid_search.fit(X_train, y_train)
+
+        return {
+            "best_params": grid_search.best_params_,
+            "best_score": grid_search.best_score_,
+            "best_model": grid_search.best_estimator_,
+            "cv_results": pd.DataFrame(grid_search.cv_results_),
+            "grid_search": grid_search,
+        }
+
+    @staticmethod
+    def compare_models(
+        models_config: Dict[str, Dict[str, List]],
+        X_train: pd.DataFrame,
+        y_train: pd.Series,
+        cv: int = 5,
+        scoring: Optional[str] = None,
+        n_jobs: int = -1,
+        verbose: int = 1,
+    ) -> Dict[str, Any]:
+        """
+        Compare multiple forest models with hyperparameter tuning to find the best overall model.
+
+        This method runs grid search on multiple model types (Random Forest and/or XGBoost)
+        and returns the best performing model along with detailed comparison results.
+
+        Parameters
+        ----------
+        models_config : dict
+            Dictionary where keys are model types and values are parameter grids.
+            Model types: 'random_forest_classifier', 'random_forest_regressor',
+                        'xgboost_classifier', 'xgboost_regressor'
+            Example:
+                {
+                    'random_forest_classifier': {
+                        'n_estimators': [50, 100],
+                        'max_depth': [5, 10]
+                    },
+                    'xgboost_classifier': {
+                        'n_estimators': [50, 100],
+                        'max_depth': [3, 5],
+                        'learning_rate': [0.1, 0.3]
+                    }
+                }
+        X_train : pd.DataFrame
+            Training features.
+        y_train : pd.Series
+            Training target values.
+        cv : int, optional (default=5)
+            Number of cross-validation folds.
+        scoring : str or None, optional (default=None)
+            Scoring metric for evaluation. If None, uses model's default.
+            Classification: 'accuracy', 'f1', 'roc_auc', 'precision', 'recall'
+            Regression: 'r2', 'neg_mean_squared_error', 'neg_mean_absolute_error'
+        n_jobs : int, optional (default=-1)
+            Number of parallel jobs. -1 means using all processors.
+        verbose : int, optional (default=1)
+            Controls the verbosity of grid search output.
+
+        Returns
+        -------
+        dict
+            Dictionary containing:
+            - best_model_type: Name of the best performing model type
+            - best_model: The best trained model
+            - best_params: Best hyperparameters for the best model
+            - best_score: Best cross-validation score achieved
+            - all_results: Dictionary with results for each model type
+            - comparison_df: DataFrame comparing all models (sorted by score)
+
+        Examples
+        --------
+        # Compare Random Forest and XGBoost classifiers
+        models_config = {
+            'random_forest_classifier': {
+                'n_estimators': [50, 100, 200],
+                'max_depth': [5, 10, 15],
+                'min_samples_split': [2, 5],
+                'max_features': ['sqrt', 'log2']
+            },
+            'xgboost_classifier': {
+                'n_estimators': [50, 100, 200],
+                'max_depth': [3, 5, 7],
+                'learning_rate': [0.01, 0.1, 0.3],
+                'subsample': [0.8, 1.0]
+            }
+        }
+
+        comparison = ForestModels.compare_models(
+            models_config=models_config,
+            X_train=X_train,
+            y_train=y_train,
+            cv=5,
+            scoring='accuracy'
+        )
+
+        print(f"Best model: {comparison['best_model_type']}")
+        print(f"Best score: {comparison['best_score']:.4f}")
+        print(f"Best params: {comparison['best_params']}")
+        print("\\nComparison of all models:")
+        print(comparison['comparison_df'])
+
+        # Use the best model
+        best_model = comparison['best_model']
+        predictions = best_model.predict(X_test)
+
+        # Compare regressors
+        models_config = {
+            'random_forest_regressor': {
+                'n_estimators': [100, 200],
+                'max_depth': [10, 15, None]
+            },
+            'xgboost_regressor': {
+                'n_estimators': [100, 200],
+                'max_depth': [5, 7],
+                'learning_rate': [0.05, 0.1]
+            }
+        }
+
+        comparison = ForestModels.compare_models(
+            models_config=models_config,
+            X_train=X_train,
+            y_train=y_train,
+            cv=5,
+            scoring='r2'
+        )
+        """
+        if not models_config:
+            raise ValueError("models_config cannot be empty. Provide at least one model to compare.")
+
+        all_results = {}
+        comparison_data = []
+
+        # Run grid search for each model type
+        for model_type, param_grid in models_config.items():
+            if verbose > 0:
+                print(f"\n{'='*60}")
+                print(f"Running grid search for: {model_type}")
+                print(f"{'='*60}")
+
+            # Perform grid search
+            results = ForestModels.grid_search_hyperparameters(
+                model_type=model_type,
+                X_train=X_train,
+                y_train=y_train,
+                param_grid=param_grid,
+                cv=cv,
+                scoring=scoring,
+                n_jobs=n_jobs,
+                verbose=verbose,
+            )
+
+            # Store results
+            all_results[model_type] = results
+
+            # Collect comparison data
+            comparison_data.append(
+                {
+                    "model_type": model_type,
+                    "best_score": results["best_score"],
+                    "best_params": str(results["best_params"]),
+                    "n_param_combinations": len(results["cv_results"]),
+                }
+            )
+
+            if verbose > 0:
+                print(f"\nBest score for {model_type}: {results['best_score']:.4f}")
+                print(f"Best params: {results['best_params']}")
+
+        # Create comparison DataFrame
+        comparison_df = pd.DataFrame(comparison_data).sort_values("best_score", ascending=False).reset_index(drop=True)
+
+        # Determine the best model
+        best_model_type = comparison_df.iloc[0]["model_type"]
+        best_results = all_results[best_model_type]
+
+        if verbose > 0:
+            print(f"\n{'='*60}")
+            print(f"BEST MODEL: {best_model_type}")
+            print(f"Best score: {best_results['best_score']:.4f}")
+            print(f"Best params: {best_results['best_params']}")
+            print(f"{'='*60}\n")
+
+        return {
+            "best_model_type": best_model_type,
+            "best_model": best_results["best_model"],
+            "best_params": best_results["best_params"],
+            "best_score": best_results["best_score"],
+            "all_results": all_results,
+            "comparison_df": comparison_df,
         }
 
     # ==================== EVALUATION METHODS ====================
